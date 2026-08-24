@@ -24,4 +24,24 @@ The distributed executable is the unmodified `usr/bin/dfrotz` from Arch Linux pa
 - Distributed file: `games/zork1.z3`, copied unchanged from `COMPILED/zork1.z3`
 - License text: `third_party/zork1/LICENSE`
 
+## Zork II
+
+- Project: [historicalsource/zork2](https://github.com/historicalsource/zork2)
+- Pinned commit: `3da9661098809788a99cef00f00c865c6c204f96`
+- Original game: Zork II by Infocom
+- Repository license: MIT, copyright © 2025 Microsoft
+- Distributed file: `games/zork2.z3`, copied unchanged from `COMPILED/zork2.z3`
+- License text: `third_party/zork2/LICENSE`
+
+## Zork III
+
+- Project: [historicalsource/zork3](https://github.com/historicalsource/zork3)
+- Pinned commit: `3ec9ed412b5f3cafe65d83c727d07db1fe4a86a8`
+- Original game: Zork III by Infocom
+- Repository license: MIT, copyright © 2025 Microsoft
+- Distributed file: `games/zork3.z3`, copied unchanged from `COMPILED/zork3.z3`
+- License text: `third_party/zork3/LICENSE`
+
+The historical repositories note that their source snapshots may not exactly match production source arrangements. LANTERN distributes the compiled Z-machine files already present in those MIT-licensed repositories without modification; it does not claim to reproduce them from the surviving ZIL source.
+
 Checksums for the distributed upstream artifacts are recorded in `third_party/SHA256SUMS`.

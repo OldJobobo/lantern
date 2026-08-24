@@ -1,4 +1,7 @@
 import QtQuick
+import QtQuick.Effects
+import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
@@ -8,6 +11,32 @@ Panel {
   id: root
   moduleName: "jobo.lantern"
   manageIpc: false
+
+  property bool storyActive: false
+  property color themeYellow: "#e6c86e"
+  property real glowLevel: 1.0
+
+  readonly property string themeColorsPath:
+    (Quickshell.env("HOME") || "/tmp") + "/.local/state/omarchy/current/theme/colors.toml"
+
+  function refreshStoryActivity() {
+    var host = bar && bar.shell ? bar.shell : null
+    if (!host || typeof host.callIfLoaded !== "function") {
+      storyActive = false
+      return
+    }
+    storyActive = host.callIfLoaded(moduleName, "storyActivity", "") === "active"
+  }
+
+  function loadThemeYellow(raw) {
+    var values = {}
+    var lines = String(raw || "").split("\n")
+    for (var i = 0; i < lines.length; i++) {
+      var match = lines[i].match(/^\s*(yellow|color3|color9)\s*=\s*["']?(#[0-9A-Fa-f]{6})/)
+      if (match) values[match[1]] = match[2]
+    }
+    themeYellow = values.yellow || values.color3 || values.color9 || "#e6c86e"
+  }
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -19,7 +48,7 @@ Panel {
     text: ""
     labelVisible: false
     hasVisualContent: true
-    tooltipText: "Lantern"
+    tooltipText: root.storyActive ? "Lantern · Story running" : "Lantern"
     fixedWidth: root.bar && root.bar.vertical ? -1 : Style.space(27)
     fixedHeight: root.bar && root.bar.vertical ? Style.space(26) : -1
     onPressed: function(mouseButton) {
@@ -28,15 +57,82 @@ Panel {
         root.bar.run("omarchy-shell shell toggle jobo.lantern '{}'")
     }
 
-    Image {
+    Item {
+      id: iconCanvas
       anchors.centerIn: parent
-      width: Style.bar.iconCanvas
-      height: Style.bar.iconCanvas
-      source: Qt.resolvedUrl("assets/lantern.svg")
-      sourceSize: Qt.size(64, 64)
-      fillMode: Image.PreserveAspectFit
-      smooth: true
-      mipmap: true
+      anchors.verticalCenterOffset: 0
+      width: Style.space(14)
+      height: Style.space(13)
+
+      Image {
+        id: iconSource
+        anchors.fill: parent
+        visible: false
+        source: Qt.resolvedUrl("assets/lantern.svg")
+        sourceSize: Qt.size(64, 64)
+        fillMode: Image.Stretch
+        smooth: true
+        mipmap: true
+        layer.enabled: true
+      }
+
+      MultiEffect {
+        anchors.fill: iconSource
+        source: iconSource
+        colorization: 1.0
+        colorizationColor: root.storyActive ? root.themeYellow : button.foreground
+        brightness: root.storyActive ? 0.04 + 0.08 * root.glowLevel : 0
+        shadowEnabled: root.storyActive
+        shadowColor: root.themeYellow
+        shadowBlur: 0.45
+        shadowOpacity: root.storyActive ? 0.10 + 0.15 * root.glowLevel : 0
+        opacity: root.storyActive ? 0.72 + 0.28 * root.glowLevel : 1.0
+      }
+    }
+
+    Timer {
+      interval: 400
+      repeat: true
+      running: true
+      triggeredOnStart: true
+      onTriggered: root.refreshStoryActivity()
+    }
+
+    FileView {
+      id: paletteFile
+      path: root.themeColorsPath
+      watchChanges: true
+      printErrors: false
+      onLoaded: root.loadThemeYellow(text())
+      onFileChanged: reload()
+    }
+
+    Connections {
+      target: Color
+      function onForegroundChanged() { paletteFile.reload() }
+      function onShellValuesChanged() { paletteFile.reload() }
+    }
+
+    SequentialAnimation {
+      running: root.storyActive
+      loops: Animation.Infinite
+      alwaysRunToEnd: true
+      NumberAnimation {
+        target: root
+        property: "glowLevel"
+        from: 0.35
+        to: 1.0
+        duration: 920
+        easing.type: Easing.InOutSine
+      }
+      NumberAnimation {
+        target: root
+        property: "glowLevel"
+        from: 1.0
+        to: 0.35
+        duration: 920
+        easing.type: Easing.InOutSine
+      }
     }
   }
 }

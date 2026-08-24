@@ -32,6 +32,13 @@ test("history navigation moves backward and forward with a blank draft sentinel"
   assert.deepEqual(Model.historyStep(history, 1, 1), { index: 2, value: "" })
 })
 
+test("menuStep wraps launcher selection in either direction", () => {
+  assert.equal(Model.menuStep(0, 3, 1), 1)
+  assert.equal(Model.menuStep(2, 3, 1), 0)
+  assert.equal(Model.menuStep(0, 3, -1), 2)
+  assert.equal(Model.menuStep(7, 0, 1), 0)
+})
+
 test("safeStoryPath accepts only absolute Z-machine story files", () => {
   assert.equal(Model.safeStoryPath("/home/me/.local/share/lantern/games/zork1.z3"), "/home/me/.local/share/lantern/games/zork1.z3")
   assert.equal(Model.safeStoryPath("relative/zork1.z3"), "")

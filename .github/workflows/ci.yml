@@ -32,5 +32,5 @@ jobs:
           tar -C /tmp/lantern-frotz-source -xzf third_party/frotz/source/frotz-2.55.tar.gz
           make -C /tmp/lantern-frotz-source/frotz-2.55 PREFIX=/usr dumb
           test -x /tmp/lantern-frotz-source/frotz-2.55/dfrotz
-      - name: Smoke bundled interpreter and story
+      - name: Smoke bundled interpreter and Zork trilogy
         run: ./tests/smoke-runtime

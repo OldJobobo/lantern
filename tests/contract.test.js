@@ -23,12 +23,24 @@ test("bar widget opens Lantern through the shell host with its bundled icon", ()
   for (const required of [
     'moduleName: "jobo.lantern"',
     "WidgetButton",
-    'tooltipText: "Lantern"',
+    'tooltipText: root.storyActive ? "Lantern · Story running" : "Lantern"',
     'Qt.resolvedUrl("assets/lantern.svg")',
     'root.bar.run("omarchy-shell shell toggle jobo.lantern \'{}\'")'
   ]) assert.match(source, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
   assert.match(icon, /viewBox="0 0 24 24"/)
-  assert.match(icon, /#ffb84d/)
+  assert.match(icon, /#ffffff/)
+  assert.match(icon, /transform="translate\(0 1\)"/)
+  assert.doesNotMatch(icon, /#ffb84d|#2b1908|#4a2c0d/)
+  assert.match(source, /MultiEffect/)
+  assert.match(source, /anchors\.verticalCenterOffset: 0/)
+  assert.match(source, /width: Style\.space\(14\)/)
+  assert.match(source, /height: Style\.space\(13\)/)
+  assert.match(source, /fillMode: Image\.Stretch/)
+  assert.match(source, /host\.callIfLoaded\(moduleName, "storyActivity", ""\)/)
+  assert.match(source, /values\.yellow \|\| values\.color3 \|\| values\.color9/)
+  assert.match(source, /colorizationColor: root\.storyActive \? root\.themeYellow : button\.foreground/)
+  assert.match(source, /shadowEnabled: root\.storyActive/)
+  assert.match(source, /running: root\.storyActive/)
 })
 
 test("panel follows the Quattro lifecycle and keeps Frotz file access restricted", () => {
@@ -45,6 +57,23 @@ test("panel follows the Quattro lifecycle and keeps Frotz file access restricted
     "DragHandler",
     "cursorShape: Qt.SizeAllCursor",
     "window.startSystemMove()",
+    'property string viewMode: "menu"',
+    "readonly property var bundledGames",
+    "readonly property string lanternLogo",
+    'text: "Z-MACHINE STORY TERMINAL  //  SELECT A CARTRIDGE"',
+    'text: "UP/DOWN  SELECT    ENTER  BOOT    1-3  QUICK START"',
+    "root.activateMenuSelection()",
+    "property bool returningToMenu: false",
+    "function returnToMenu()",
+    "if (frotzProc.running) frotzProc.running = false",
+    'text: "MENU  ^M"',
+    "event.key === Qt.Key_M",
+    "onTapped: root.returnToMenu()",
+    "onClosed:",
+    "property bool nativeClosePending: false",
+    "readonly property var window: windowLoader.item",
+    "if (!windowLoader.active) windowLoader.active = true",
+    "windowLoader.active = false",
     'windowStateHelper: pluginRoot + "/bin/window-state"',
     'command: [root.windowStateHelper, "save"]',
     'command: [root.windowStateHelper, "prepare"]',
@@ -60,28 +89,31 @@ test("panel follows the Quattro lifecycle and keeps Frotz file access restricted
   assert.doesNotMatch(source, /WlrLayershell|WlrKeyboardFocus|ExclusionMode/)
 })
 
-test("release contains a self-contained x86-64 runtime and default story", () => {
+test("release contains a self-contained x86-64 runtime and Zork trilogy", () => {
   const runtime = path.join(root, "runtime/x86_64-linux/dfrotz")
-  const story = path.join(root, "games/zork1.z3")
-
+  const stories = ["zork1.z3", "zork2.z3", "zork3.z3"]
+    .map(file => path.join(root, "games", file))
   const windowStateHelper = path.join(root, "bin/window-state")
 
   for (const required of [
     runtime,
-    story,
+    ...stories,
     windowStateHelper,
     path.join(root, "THIRD_PARTY_NOTICES.md"),
     path.join(root, "third_party/frotz/COPYING"),
     path.join(root, "third_party/frotz/BUILD.md"),
     path.join(root, "third_party/frotz/source/frotz-2.55.tar.gz"),
     path.join(root, "third_party/zork1/LICENSE"),
+    path.join(root, "third_party/zork2/LICENSE"),
+    path.join(root, "third_party/zork3/LICENSE"),
     path.join(root, "third_party/SHA256SUMS")
   ]) assert.equal(fs.existsSync(required), true, `missing ${path.relative(root, required)}`)
 
   assert.equal(fs.statSync(runtime).mode & 0o111, 0o111, "bundled dfrotz must be executable")
   assert.equal(fs.statSync(windowStateHelper).mode & 0o111, 0o111, "window state helper must be executable")
   assert.deepEqual([...fs.readFileSync(runtime).subarray(0, 5)], [0x7f, 0x45, 0x4c, 0x46, 0x02])
-  assert.equal(fs.readFileSync(story)[0], 3, "bundled Zork I must be a V3 story")
+  for (const story of stories)
+    assert.equal(fs.readFileSync(story)[0], 3, `${path.basename(story)} must be a V3 story`)
 })
 
 test("third-party checksum inventory covers every distributed upstream artifact", () => {
@@ -101,6 +133,8 @@ test("third-party checksum inventory covers every distributed upstream artifact"
   for (const relative of [
     "runtime/x86_64-linux/dfrotz",
     "games/zork1.z3",
+    "games/zork2.z3",
+    "games/zork3.z3",
     "third_party/frotz/source/frotz-2.55.tar.gz"
   ]) assert.equal(covered.has(relative), true, `checksum inventory omits ${relative}`)
 })
@@ -110,7 +144,12 @@ test("panel launches only bundled defaults without PATH or external game setup",
   assert.match(source, /Qt\.resolvedUrl\("\."\)/)
   assert.match(source, /runtime\/x86_64-linux\/dfrotz/)
   assert.match(source, /games\/zork1\.z3/)
+  assert.match(source, /games\/zork2\.z3/)
+  assert.match(source, /games\/zork3\.z3/)
+  assert.match(source, /title: "ZORK II"/)
+  assert.match(source, /title: "ZORK III"/)
   assert.doesNotMatch(source, /\["dfrotz"/)
+  assert.match(source, /restore the bundled Zork trilogy/)
   assert.doesNotMatch(source, /\.local\/share\/lantern\/games/)
   assert.doesNotMatch(source, /Install the Arch package/)
 })
@@ -132,7 +171,7 @@ test("release bundles the Qt 6 CRT shader and an effects-off fallback", () => {
     "live: root.crtEffects",
     "visible: root.crtEffects",
     'fragmentShader: Qt.resolvedUrl("shaders/crt.frag.qsb")',
-    "if (root.opened && window.visible) commandInput.forceActiveFocus()",
+    "if (root.opened && window && window.visible) root.focusCurrentView()",
     "wrapMode: Text.NoWrap",
     "TapHandler"
   ]) assert.match(panel, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
@@ -151,7 +190,8 @@ test("panel serializes startup around one immutable checked story path", () => {
   for (const required of [
     "property bool startPending: false",
     "property string pendingStoryPath: \"\"",
-    "if (!frotzProc.running && !startPending)",
+    "if (frotzProc.running || startPending) return",
+    "launchStory(bundledGames[menuIndex].path)",
     "storyCheck.command = [\"test\", \"-r\", root.pendingStoryPath]",
     "root.pendingStoryPath"
   ]) assert.match(source, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))

@@ -10,9 +10,9 @@ It is deliberately small: the bundled Frotz interpreter runs the game; LANTERN s
 omarchy plugin add https://github.com/OldJobobo/lantern.git --enable
 ```
 
-That is the complete installation. LANTERN includes its own `dfrotz` runtime and an MIT-licensed copy of Zork I. It does not run an installer, use sudo, download assets on first launch, or require a separate package.
+That is the complete installation. LANTERN includes its own `dfrotz` runtime and MIT-licensed copies of the complete Zork trilogy. It does not run an installer, use sudo, download assets on first launch, or require a separate package.
 
-Enabling LANTERN adds its amber lantern icon to the right side of the Omarchy bar. Click it to open or hide the terminal. You can also summon it from the command line:
+Enabling LANTERN adds its monochrome lantern icon to the right side of the Omarchy bar. It follows the bar foreground while idle; during an active story it shifts to the current theme's `yellow` color and emits a slow phosphor-like pulse. Click it to open or hide the terminal. You can also summon it from the command line:
 
 ```bash
 omarchy-shell shell summon jobo.lantern '{}'
@@ -24,7 +24,9 @@ The bundled runtime currently supports **x86-64 glibc Linux**, matching current 
 
 ## Games and appearance
 
-Zork I is selected by default. You can summon another legally obtained `.z1`–`.z8`, `.zblorb`, or `.blorb` story by absolute path:
+LANTERN opens on its cartridge launcher instead of starting a game immediately. The current release includes **Zork I**, **Zork II**, and **Zork III**; choose one with the arrow keys, `Enter`, the matching `1`–`3` key, or a pointer.
+
+You can bypass the launcher and summon another legally obtained `.z1`–`.z8`, `.zblorb`, or `.blorb` story by absolute path:
 
 ```bash
 omarchy-shell shell summon jobo.lantern \
@@ -42,9 +44,14 @@ omarchy-shell shell summon jobo.lantern \
 
 - **Bar icon:** open or hide LANTERN
 - **Drag the top label strip:** move the terminal
-- **Enter:** submit command
-- **Up/Down:** command history
+- **Launcher Up/Down:** select a bundled story
+- **Launcher Enter or 1–3:** boot the selected story
+- **Game Enter:** submit command
+- **Game Up/Down:** command history
+- **Game MENU button or Ctrl+M:** end the current story process and return to the cartridge launcher
 - **Escape:** hide LANTERN while leaving the game process alive
+
+Closing the native window also preserves the game process. LANTERN rebuilds the `FloatingWindow` on the next bar click so compositor-close and reopen cycles remain reliable.
 
 LANTERN remembers the window's monitor and monitor-relative position when it closes. Before the next window is mapped, it installs a temporary Hyprland initial-placement rule for that saved geometry, then removes the rule after creation. The window therefore starts at its persistent location rather than appearing at center and moving afterward. If the saved monitor is unavailable, the compositor's normal placement is left untouched.
 
@@ -67,7 +74,7 @@ ${XDG_STATE_HOME:-~/.local/state}/lantern/window.json
 LANTERN includes:
 
 - Frotz 2.55 `dfrotz`, licensed under GPL-2.0-or-later
-- Zork I from `historicalsource/zork1`, licensed under MIT
+- Zork I, II, and III from the corresponding `historicalsource/zork1`, `zork2`, and `zork3` repositories, licensed under MIT
 
 See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), the complete corresponding Frotz source under `third_party/frotz/source/`, and the checksum inventory at `third_party/SHA256SUMS`.
 

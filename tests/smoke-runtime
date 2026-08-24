@@ -3,11 +3,22 @@ set -euo pipefail
 
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 runtime="$root/runtime/x86_64-linux/dfrotz"
-story="$root/games/zork1.z3"
 saves="$(mktemp -d)"
 trap 'rm -rf "$saves"' EXIT
 
-output="$(printf 'look\nquit\ny\n' | timeout 10 "$runtime" -q -m -w 76 -R "$saves" "$story")"
-grep -Fq "West of House" <<<"$output"
-grep -Fq "You are standing in an open field" <<<"$output"
-printf 'Bundled dfrotz and Zork I smoke passed.\n'
+smoke_story() {
+  local story="$1"
+  local expected_title="$2"
+  local expected_room="$3"
+  local output
+
+  output="$(printf 'look\nquit\ny\n' | timeout 10 "$runtime" -q -m -w 76 -R "$saves" "$root/games/$story")"
+  grep -Fq "$expected_title" <<<"$output"
+  grep -Fq "$expected_room" <<<"$output"
+}
+
+smoke_story "zork1.z3" "ZORK I: The Great Underground Empire" "West of House"
+smoke_story "zork2.z3" "ZORK II: The Wizard of Frobozz" "Inside the Barrow"
+smoke_story "zork3.z3" "ZORK III: The Dungeon Master" "Endless Stair"
+
+printf 'Bundled dfrotz and Zork trilogy smoke passed.\n'

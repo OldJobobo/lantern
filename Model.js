@@ -33,6 +33,14 @@ function historyStep(history, index, direction) {
   return { index: next, value: next < items.length ? String(items[next]) : "" }
 }
 
+function menuStep(index, count, direction) {
+  var size = Math.max(0, Math.floor(Number(count) || 0))
+  if (size === 0) return 0
+  var current = Math.max(0, Math.min(size - 1, Math.floor(Number(index) || 0)))
+  var delta = Number(direction) < 0 ? -1 : 1
+  return (current + delta + size) % size
+}
+
 function safeStoryPath(raw) {
   var value = String(raw || "")
   if (!value.startsWith("/") || /[\r\n\u0000]/.test(value)) return ""
@@ -46,6 +54,7 @@ if (typeof module !== "undefined") {
     cleanOutput: cleanOutput,
     appendTranscript: appendTranscript,
     historyStep: historyStep,
+    menuStep: menuStep,
     safeStoryPath: safeStoryPath
   }
 }

@@ -1,12 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Lantern">
-  <g stroke="#2b1908" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M8.5 5.8V4.7a3.5 3.5 0 0 1 7 0v1.1" fill="none" stroke-width="3"/>
-    <path d="M8.5 5.8V4.7a3.5 3.5 0 0 1 7 0v1.1" fill="none" stroke="#ffb84d" stroke-width="1.4"/>
-    <path d="M7 5.7h10l1 3H6l1-3Z" fill="#ffb84d"/>
-    <path d="m8 8.7-1.6 9.6h11.2L16 8.7H8Z" fill="#4a2c0d" stroke="#ffb84d" stroke-width="1.2"/>
-    <path d="m9.3 10.1-1 6.8h7.4l-1-6.8H9.3Z" fill="#ffb84d"/>
-    <path d="M12 10.1v6.8" fill="none" opacity=".72"/>
-    <path d="M6.1 18.3h11.8l.8 2.4H5.3l.8-2.4Z" fill="#ffb84d"/>
+  <g transform="translate(0 1)" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8.5 5.8V4.7a3.5 3.5 0 0 1 7 0v1.1"/>
+    <path d="M7 5.7h10l1 3H6l1-3Z" fill="#ffffff"/>
+    <path d="m8 8.7-1.6 9.6h11.2L16 8.7H8Z"/>
+    <path d="m9.3 10.1-1 6.8h7.4l-1-6.8H9.3Z" fill="#ffffff"/>
+    <path d="M6.1 18.3h11.8l.8 2.4H5.3l.8-2.4Z" fill="#ffffff"/>
   </g>
-  <path d="M10.15 11.2h1.1l-.65 4.6H9.45l.7-4.6Z" fill="#ffe0a6" opacity=".8"/>
 </svg>
