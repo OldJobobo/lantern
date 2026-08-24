@@ -17,6 +17,27 @@ test("manifest declares a summonable third-party panel", () => {
   assert.equal(manifest.license, "MIT AND GPL-2.0-or-later")
 })
 
+test("release ships a watched Lantern TOML configuration", () => {
+  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+  const config = fs.readFileSync(path.join(root, "lantern.toml"), "utf8")
+
+  for (const required of [
+    'bundledConfigPath: pluginRoot + "/lantern.toml"',
+    'userConfigPath: configRoot + "/lantern/lantern.toml"',
+    "Model.parseLanternConfig(raw)",
+    "function applyConfigLayers()",
+    "watchChanges: true",
+    "onFileChanged: reload()",
+    "property real rasterGain: root.crtRasterGain"
+  ]) assert.match(panel, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+
+  for (const required of [
+    "[display]", "phosphor", "effects", "raster_opacity", "raster_gain",
+    "cursor_fade_ms", "[terminal]", "history_limit", "transcript_line_limit",
+    "[launcher]", "default_cartridge", "[controls]", "dial_step"
+  ]) assert.match(config, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+})
+
 test("bar widget opens Lantern through the shell host with its bundled icon", () => {
   const source = fs.readFileSync(path.join(root, "BarWidget.qml"), "utf8")
   const icon = fs.readFileSync(path.join(root, "assets/lantern.svg"), "utf8")
@@ -72,9 +93,15 @@ test("panel follows the Quattro lifecycle and keeps Frotz file access restricted
     "property real crtRasterOpacity: 1.0",
     "function setCrtRasterOpacity(value)",
     'text: "BRIGHT  " + Math.round(root.crtRasterOpacity * 100)',
-    "root.adjustCrtRasterOpacity(event.angleDelta.y > 0 ? 0.05 : -0.05)",
+    "root.adjustCrtRasterOpacity(event.angleDelta.y > 0 ? root.dialStep : -root.dialStep)",
     "property real effectStrength: root.crtEffects ? 1.0 : 0.0",
     "property real rasterOpacity: root.crtRasterOpacity",
+    'themeColorsPath: homePath + "/.local/state/omarchy/current/theme/colors.toml"',
+    "function loadThemePalette(raw)",
+    "function cyclePhosphor()",
+    'text: "COLOR  " + root.phosphorLabel',
+    'text: "CRT color: " + (root.phosphor === "theme" ? "Omarchy theme" : root.phosphor)',
+    "onTapped: root.cyclePhosphor()",
     "onClosed:",
     "property bool nativeClosePending: false",
     "readonly property var window: windowLoader.item",

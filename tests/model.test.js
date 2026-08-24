@@ -39,6 +39,24 @@ test("menuStep wraps launcher selection in either direction", () => {
   assert.equal(Model.menuStep(7, 0, 1), 0)
 })
 
+test("parseLanternConfig reads supported TOML scalar sections", () => {
+  const config = Model.parseLanternConfig(`
+    # user choices
+    [display]
+    phosphor = "green"
+    effects = false
+    raster_opacity = 0.65 # restrained
+
+    [terminal]
+    history_limit = 48
+  `)
+
+  assert.deepEqual(config, {
+    display: { phosphor: "green", effects: false, raster_opacity: 0.65 },
+    terminal: { history_limit: 48 }
+  })
+})
+
 test("safeStoryPath accepts only absolute Z-machine story files", () => {
   assert.equal(Model.safeStoryPath("/home/me/.local/share/lantern/games/zork1.z3"), "/home/me/.local/share/lantern/games/zork1.z3")
   assert.equal(Model.safeStoryPath("relative/zork1.z3"), "")

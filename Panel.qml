@@ -25,8 +25,17 @@ Item {
   property int menuIndex: 0
   property bool crtEffects: true
   property real crtRasterOpacity: 1.0
+  property real crtRasterGain: 2.25
   property real crtTime: 0
   property string phosphor: "amber"
+  property color themePhosphorColor: "#d8e7df"
+  property color themeScreenColor: "#0a0f0d"
+  property int cursorFadeMs: 520
+  property int historyLimit: 100
+  property int transcriptLineLimit: 1200
+  property real dialStep: 0.05
+  property string bundledConfigText: ""
+  property string userConfigText: ""
   property var commandHistory: []
   property int historyIndex: 0
 
@@ -34,8 +43,12 @@ Item {
 
   readonly property string homePath: Quickshell.env("HOME") || "/tmp"
   readonly property string stateRoot: Quickshell.env("XDG_STATE_HOME") || homePath + "/.local/state"
+  readonly property string configRoot: Quickshell.env("XDG_CONFIG_HOME") || homePath + "/.config"
   readonly property string pluginRoot: decodeURIComponent(String(Qt.resolvedUrl(".")))
     .replace(/^file:\/\//, "").replace(/\/$/, "")
+  readonly property string bundledConfigPath: pluginRoot + "/lantern.toml"
+  readonly property string userConfigPath: configRoot + "/lantern/lantern.toml"
+  readonly property string themeColorsPath: homePath + "/.local/state/omarchy/current/theme/colors.toml"
   readonly property string runtimePath: pluginRoot + "/runtime/x86_64-linux/dfrotz"
   readonly property string bundledStoryPath: pluginRoot + "/games/zork1.z3"
   readonly property string zork2StoryPath: pluginRoot + "/games/zork2.z3"
@@ -68,14 +81,64 @@ Item {
     "| |___ / ___ \\| |\\  | | | | |___|  _ <| |\\  |\n" +
     "|_____/_/   \\_\\_| \\_| |_| |_____|_| \\_\\_| \\_|"
   readonly property color phosphorColor: phosphor === "green" ? "#78ff83"
+    : phosphor === "theme" ? themePhosphorColor
     : phosphor === "white" ? "#d8e7df" : "#ffb84d"
+  readonly property color screenColor: phosphor === "green" ? "#061008"
+    : phosphor === "theme" ? themeScreenColor
+    : phosphor === "white" ? "#0a0f0d" : "#120d06"
   readonly property color phosphorDim: Qt.rgba(phosphorColor.r, phosphorColor.g, phosphorColor.b, 0.48)
+  readonly property string phosphorLabel: phosphor === "green" ? "GRN" : phosphor === "theme" ? "THM" : "AMB"
+
+  function loadThemePalette(raw) {
+    var values = {}
+    var lines = String(raw || "").split("\n")
+    for (var i = 0; i < lines.length; i++) {
+      var match = lines[i].match(/^\s*(foreground|fg|color7|background|bg|color0)\s*=\s*["']?(#[0-9A-Fa-f]{6})/)
+      if (match) values[match[1]] = match[2]
+    }
+    themePhosphorColor = values.foreground || values.fg || values.color7 || "#d8e7df"
+    themeScreenColor = values.background || values.bg || values.color0 || "#0a0f0d"
+  }
+
+  function cyclePhosphor() {
+    phosphor = phosphor === "amber" ? "green" : phosphor === "green" ? "theme" : "amber"
+  }
+
+  function configNumber(value, fallback, minimum, maximum) {
+    var number = Number(value)
+    if (!isFinite(number)) return fallback
+    return Math.max(minimum, Math.min(maximum, number))
+  }
+
+  function applyUserConfig(raw) {
+    var config = Model.parseLanternConfig(raw)
+    var display = config.display || {}
+    var terminal = config.terminal || {}
+    var launcher = config.launcher || {}
+    var controls = config.controls || {}
+
+    if (display.phosphor === "amber" || display.phosphor === "green" || display.phosphor === "theme" || display.phosphor === "white")
+      phosphor = display.phosphor
+    if (display.effects === true || display.effects === false) crtEffects = display.effects
+    crtRasterOpacity = configNumber(display.raster_opacity, crtRasterOpacity, 0.0, 1.0)
+    crtRasterGain = configNumber(display.raster_gain, crtRasterGain, 0.25, 4.0)
+    cursorFadeMs = Math.round(configNumber(display.cursor_fade_ms, cursorFadeMs, 150, 2000))
+    historyLimit = Math.round(configNumber(terminal.history_limit, historyLimit, 10, 500))
+    transcriptLineLimit = Math.round(configNumber(terminal.transcript_line_limit, transcriptLineLimit, 200, 5000))
+    dialStep = configNumber(controls.dial_step, dialStep, 0.01, 0.25)
+    menuIndex = Math.round(configNumber(launcher.default_cartridge, menuIndex + 1, 1, bundledGames.length)) - 1
+  }
+
+  function applyConfigLayers() {
+    if (bundledConfigText !== "") applyUserConfig(bundledConfigText)
+    if (userConfigText !== "") applyUserConfig(userConfigText)
+  }
 
   function open(payloadJson) {
     var payload = {}
     try { payload = JSON.parse(String(payloadJson || "{}")) || {} } catch (e) {}
 
-    if (payload.phosphor === "green" || payload.phosphor === "white" || payload.phosphor === "amber")
+    if (payload.phosphor === "green" || payload.phosphor === "theme" || payload.phosphor === "white" || payload.phosphor === "amber")
       phosphor = payload.phosphor
     if (payload.effects === true || payload.effects === false)
       crtEffects = payload.effects
@@ -190,7 +253,7 @@ Item {
   function appendOutput(raw) {
     var cleaned = Model.cleanOutput(raw)
     if (cleaned === "") return
-    transcript = Model.appendTranscript(transcript, cleaned, 1200)
+    transcript = Model.appendTranscript(transcript, cleaned, transcriptLineLimit)
     Qt.callLater(scrollToBottom)
   }
 
@@ -203,11 +266,11 @@ Item {
     var command = Model.normalizeCommand(raw)
     if (command === "" || !frotzProc.running) return
 
-    transcript = Model.appendTranscript(transcript, "\n> " + command, 1200)
+    transcript = Model.appendTranscript(transcript, "\n> " + command, transcriptLineLimit)
     var nextHistory = commandHistory.slice(0)
     if (nextHistory.length === 0 || nextHistory[nextHistory.length - 1] !== command)
       nextHistory.push(command)
-    if (nextHistory.length > 100) nextHistory = nextHistory.slice(nextHistory.length - 100)
+    if (nextHistory.length > historyLimit) nextHistory = nextHistory.slice(nextHistory.length - historyLimit)
     commandHistory = nextHistory
     historyIndex = commandHistory.length
     if (window && typeof window.clearCommandInput === "function") window.clearCommandInput()
@@ -219,6 +282,49 @@ Item {
     var next = Model.historyStep(commandHistory, historyIndex, direction)
     historyIndex = next.index
     if (window && typeof window.setCommandDraft === "function") window.setCommandDraft(next.value)
+  }
+
+  FileView {
+    id: bundledConfig
+    path: root.bundledConfigPath
+    watchChanges: true
+    printErrors: true
+    onLoaded: {
+      root.bundledConfigText = text()
+      root.applyConfigLayers()
+    }
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: userConfig
+    path: root.userConfigPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: {
+      root.userConfigText = text()
+      root.applyConfigLayers()
+    }
+    onLoadFailed: {
+      root.userConfigText = ""
+      root.applyConfigLayers()
+    }
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: themePalette
+    path: root.themeColorsPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.loadThemePalette(text())
+    onFileChanged: reload()
+  }
+
+  Connections {
+    target: Color
+    function onForegroundChanged() { themePalette.reload() }
+    function onShellValuesChanged() { themePalette.reload() }
   }
 
   Timer {
@@ -460,7 +566,7 @@ Item {
           anchors.topMargin: 42
           anchors.bottomMargin: 34
           radius: root.crtEffects ? 0 : 58
-          color: root.phosphor === "amber" ? "#120d06" : root.phosphor === "green" ? "#061008" : "#0a0f0d"
+          color: root.screenColor
           border.width: root.crtEffects ? 0 : 2
           border.color: "#050604"
           clip: true
@@ -575,8 +681,8 @@ Item {
                   SequentialAnimation on blinkOpacity {
                     running: root.crtEffects
                     loops: Animation.Infinite
-                    NumberAnimation { from: 1.0; to: 0.18; duration: 520 }
-                    NumberAnimation { from: 0.18; to: 1.0; duration: 520 }
+                    NumberAnimation { from: 1.0; to: 0.18; duration: root.cursorFadeMs }
+                    NumberAnimation { from: 0.18; to: 1.0; duration: root.cursorFadeMs }
                   }
                 }
               }
@@ -788,6 +894,7 @@ Item {
             property real time: root.crtTime
             property real effectStrength: root.crtEffects ? 1.0 : 0.0
             property real rasterOpacity: root.crtRasterOpacity
+            property real rasterGain: root.crtRasterGain
             fragmentShader: Qt.resolvedUrl("shaders/crt.frag.qsb")
           }
 
@@ -897,7 +1004,7 @@ Item {
             WheelHandler {
               onWheel: function(event) {
                 if (event.angleDelta.y === 0) return
-                root.adjustCrtRasterOpacity(event.angleDelta.y > 0 ? 0.05 : -0.05)
+                root.adjustCrtRasterOpacity(event.angleDelta.y > 0 ? root.dialStep : -root.dialStep)
                 event.accepted = true
               }
             }
@@ -912,11 +1019,123 @@ Item {
           }
         }
 
+        Item {
+          id: phosphorSelector
+          width: 118
+          height: 30
+          anchors.right: crtDial.left
+          anchors.rightMargin: 14
+          anchors.bottom: parent.bottom
+          anchors.bottomMargin: 4
+          z: 32
+
+          Text {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenterOffset: 1
+            text: "COLOR  " + root.phosphorLabel
+            color: "#777466"
+            font.family: "monospace"
+            font.pixelSize: 8
+            font.bold: true
+            font.letterSpacing: 0.7
+            textFormat: Text.PlainText
+          }
+
+          Item {
+            id: rgbButton
+            width: 39
+            height: 27
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+
+            Rectangle {
+              width: 37
+              height: 23
+              radius: 3
+              anchors.horizontalCenter: parent.horizontalCenter
+              anchors.top: parent.top
+              anchors.topMargin: 3
+              color: "#11120f"
+              border.width: 1
+              border.color: "#070806"
+            }
+
+            Rectangle {
+              width: 35
+              height: 21
+              radius: 3
+              anchors.horizontalCenter: parent.horizontalCenter
+              y: rgbTap.pressed ? 4 : 2
+              color: rgbTap.pressed ? "#292a23" : "#37382f"
+              border.width: 1
+              border.color: rgbTap.pressed ? "#505044" : "#5f5f51"
+
+              Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 2
+                height: 3
+                radius: 2
+                color: "#777768"
+                opacity: rgbTap.pressed ? 0.18 : 0.38
+              }
+
+              Row {
+                anchors.centerIn: parent
+                anchors.verticalCenterOffset: 1
+                spacing: 2
+
+                Repeater {
+                  model: [{ letter: "R", color: "#c9685f" },
+                    { letter: "G", color: "#76a96f" },
+                    { letter: "B", color: "#698fb6" }]
+
+                  delegate: Text {
+                    required property var modelData
+                    text: modelData.letter
+                    color: modelData.color
+                    font.family: "monospace"
+                    font.pixelSize: 8
+                    font.bold: true
+                    textFormat: Text.PlainText
+                  }
+                }
+              }
+            }
+
+            Rectangle {
+              width: 9
+              height: 2
+              radius: 1
+              anchors.horizontalCenter: parent.horizontalCenter
+              anchors.bottom: parent.bottom
+              color: root.phosphorColor
+              opacity: 0.72
+            }
+
+            HoverHandler {
+              id: rgbHover
+              cursorShape: Qt.PointingHandCursor
+            }
+
+            TapHandler {
+              id: rgbTap
+              acceptedButtons: Qt.LeftButton
+              onTapped: root.cyclePhosphor()
+            }
+
+            ToolTip.visible: rgbHover.hovered
+            ToolTip.text: "CRT color: " + (root.phosphor === "theme" ? "Omarchy theme" : root.phosphor)
+          }
+        }
+
         Rectangle {
           width: 7
           height: 7
           radius: 4
-          anchors.right: crtDial.left
+          anchors.right: phosphorSelector.left
           anchors.rightMargin: 10
           anchors.bottom: parent.bottom
           anchors.bottomMargin: 16

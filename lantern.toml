@@ -1,0 +1,35 @@
+# LANTERN user settings
+# Changes are reloaded while the Omarchy shell is running.
+
+[display]
+# Available phosphors: "amber", "green", "theme". The legacy "white"
+# value remains accepted for command-line compatibility.
+phosphor = "amber"
+
+# Enable the illustrated CRT shader. Set false for a clean, motion-free screen.
+effects = true
+
+# Starting position of the BRIGHT dial, from 0.0 to 1.0.
+raster_opacity = 1.0
+
+# Strength available at the top of the BRIGHT dial. The shipped 2.25 setting
+# makes 100 deliberately pronounced while leaving the middle range restrained.
+raster_gain = 2.25
+
+# Duration of each half of the block-cursor fade, in milliseconds.
+cursor_fade_ms = 520
+
+[terminal]
+# Maximum commands retained for Up/Down history navigation.
+history_limit = 100
+
+# Maximum transcript lines retained in memory.
+transcript_line_limit = 1200
+
+[launcher]
+# Cartridge selected when the launcher first appears: 1, 2, or 3.
+default_cartridge = 1
+
+[controls]
+# Amount changed by one mouse-wheel step over the BRIGHT dial.
+dial_step = 0.05

@@ -48,6 +48,42 @@ function safeStoryPath(raw) {
   return value
 }
 
+function tomlValue(raw) {
+  var value = String(raw || "").trim()
+  if (/^"(?:[^"\\]|\\.)*"$/.test(value)) {
+    try { return JSON.parse(value) } catch (error) { return undefined }
+  }
+  if (value === "true") return true
+  if (value === "false") return false
+  if (/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(value)) return Number(value)
+  return undefined
+}
+
+function parseLanternConfig(raw) {
+  var result = {}
+  var section = ""
+  var lines = String(raw || "").replace(/\r\n?/g, "\n").split("\n")
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim()
+    if (line === "" || line.indexOf("#") === 0) continue
+
+    var sectionMatch = line.match(/^\[([A-Za-z0-9_-]+)\]\s*(?:#.*)?$/)
+    if (sectionMatch) {
+      section = sectionMatch[1]
+      if (!result[section]) result[section] = {}
+      continue
+    }
+
+    var assignment = line.match(/^([A-Za-z0-9_-]+)\s*=\s*(.*?)\s*(?:#.*)?$/)
+    if (!assignment || section === "") continue
+    var parsed = tomlValue(assignment[2])
+    if (parsed !== undefined) result[section][assignment[1]] = parsed
+  }
+
+  return result
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     normalizeCommand: normalizeCommand,
@@ -55,6 +91,7 @@ if (typeof module !== "undefined") {
     appendTranscript: appendTranscript,
     historyStep: historyStep,
     menuStep: menuStep,
-    safeStoryPath: safeStoryPath
+    safeStoryPath: safeStoryPath,
+    parseLanternConfig: parseLanternConfig
   }
 }
