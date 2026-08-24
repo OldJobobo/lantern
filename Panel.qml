@@ -24,6 +24,7 @@ Item {
   property string viewMode: "menu"
   property int menuIndex: 0
   property bool crtEffects: true
+  property real crtRasterOpacity: 1.0
   property real crtTime: 0
   property string phosphor: "amber"
   property var commandHistory: []
@@ -176,6 +177,14 @@ Item {
     if (shell && typeof shell.hide === "function")
       shell.hide((manifest && manifest.id) || "jobo.lantern")
     else close()
+  }
+
+  function setCrtRasterOpacity(value) {
+    crtRasterOpacity = Math.max(0.0, Math.min(1.0, Number(value)))
+  }
+
+  function adjustCrtRasterOpacity(delta) {
+    setCrtRasterOpacity(crtRasterOpacity + Number(delta))
   }
 
   function appendOutput(raw) {
@@ -778,6 +787,7 @@ Item {
             property size sourceSize: Qt.size(Math.max(1, crtSource.textureSize.width), Math.max(1, crtSource.textureSize.height))
             property real time: root.crtTime
             property real effectStrength: root.crtEffects ? 1.0 : 0.0
+            property real rasterOpacity: root.crtRasterOpacity
             fragmentShader: Qt.resolvedUrl("shaders/crt.frag.qsb")
           }
 
@@ -787,12 +797,127 @@ Item {
           }
         }
 
+        Item {
+          id: crtDial
+          property real dragStart: 1.0
+          readonly property real dialAngle: -135 + root.crtRasterOpacity * 270
+          width: 116
+          height: 30
+          anchors.right: parent.right
+          anchors.rightMargin: 20
+          anchors.bottom: parent.bottom
+          anchors.bottomMargin: 4
+          z: 32
+
+          Text {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenterOffset: 1
+            text: "BRIGHT  " + Math.round(root.crtRasterOpacity * 100)
+            color: "#777466"
+            font.family: "monospace"
+            font.pixelSize: 8
+            font.bold: true
+            font.letterSpacing: 0.7
+            textFormat: Text.PlainText
+          }
+
+          Item {
+            id: dialFace
+            width: 30
+            height: 30
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+
+            Repeater {
+              model: 7
+
+              delegate: Rectangle {
+                required property int index
+                readonly property real tickAngle: -135 + index * 45
+                readonly property real radians: tickAngle * Math.PI / 180
+                width: 1
+                height: index === 0 || index === 6 ? 4 : 3
+                radius: 1
+                x: dialFace.width / 2 + Math.sin(radians) * 13 - width / 2
+                y: dialFace.height / 2 - Math.cos(radians) * 13 - height / 2
+                rotation: tickAngle
+                color: "#666357"
+                opacity: 0.8
+              }
+            }
+
+            Rectangle {
+              width: 21
+              height: 21
+              radius: 11
+              anchors.centerIn: parent
+              color: "#24251f"
+              border.width: 1
+              border.color: "#090a08"
+
+              Rectangle {
+                anchors.fill: parent
+                anchors.margins: 2
+                radius: 9
+                color: "#303128"
+                border.width: 1
+                border.color: "#48483d"
+              }
+
+              Rectangle {
+                width: 11
+                height: 3
+                radius: 2
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: 3
+                color: "#565648"
+                opacity: 0.45
+              }
+
+              Item {
+                anchors.fill: parent
+                rotation: crtDial.dialAngle
+
+                Rectangle {
+                  width: 2
+                  height: 7
+                  radius: 1
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  anchors.top: parent.top
+                  anchors.topMargin: 2
+                  color: root.phosphorDim
+                }
+              }
+            }
+
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
+
+            WheelHandler {
+              onWheel: function(event) {
+                if (event.angleDelta.y === 0) return
+                root.adjustCrtRasterOpacity(event.angleDelta.y > 0 ? 0.05 : -0.05)
+                event.accepted = true
+              }
+            }
+
+            DragHandler {
+              target: null
+              acceptedButtons: Qt.LeftButton
+              onActiveChanged: if (active) crtDial.dragStart = root.crtRasterOpacity
+              onTranslationChanged: if (active)
+                root.setCrtRasterOpacity(crtDial.dragStart - translation.y / 90 + translation.x / 180)
+            }
+          }
+        }
+
         Rectangle {
           width: 7
           height: 7
           radius: 4
-          anchors.right: parent.right
-          anchors.rightMargin: 30
+          anchors.right: crtDial.left
+          anchors.rightMargin: 10
           anchors.bottom: parent.bottom
           anchors.bottomMargin: 16
           color: frotzProc.running ? root.phosphorColor : "#413f37"

@@ -43,7 +43,7 @@ omarchy-shell shell summon jobo.lantern \
   '{"story":"/absolute/path/game.z5","phosphor":"green"}'
 ```
 
-Supported phosphor values are `amber`, `green`, and `white`. The CRT shader is enabled by default; pass `"effects":false` for an undistorted, motion-free display:
+Supported phosphor values are `amber`, `green`, and `white`. The CRT shader is enabled by default. Version 0.1.2 gives the raster a subtler analog life: content-aware scanline depth, subpixel line weave, bloom between illuminated lines, a slow refresh band, and low-level power flutter. Pass `"effects":false` for an undistorted, motion-free display:
 
 ```bash
 omarchy-shell shell summon jobo.lantern \
@@ -54,6 +54,7 @@ omarchy-shell shell summon jobo.lantern \
 
 - **Bar icon:** open or hide LANTERN
 - **Drag the top label strip:** move the terminal
+- **BRIGHT dial:** drag or scroll the illustrated CRT control to adjust the animated raster layer without changing the tube geometry
 - **Launcher Up/Down:** select a bundled story
 - **Launcher Enter or 1–3:** boot the selected story
 - **Game Enter:** submit command

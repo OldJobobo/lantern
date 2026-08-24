@@ -9,6 +9,7 @@ layout(std140, binding = 0) uniform buf {
     vec2 sourceSize;
     float time;
     float effectStrength;
+    float rasterOpacity;
 } ubuf;
 
 layout(binding = 1) uniform sampler2D source;
@@ -31,6 +32,10 @@ vec2 curvature(vec2 uv, float amount)
 void main()
 {
     float strength = clamp(ubuf.effectStrength, 0.0, 1.0);
+    float rasterStrength = strength * clamp(ubuf.rasterOpacity, 0.0, 1.0);
+    // The dial spans from clean glass to an intentionally pronounced CRT.
+    // Midrange stays restrained; 100 must be visually unmistakable.
+    float rasterGain = rasterStrength * 2.25;
     vec2 uv = curvature(qt_TexCoord0, 0.055 * strength);
     float edge = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
     float edgePixels = edge * min(ubuf.sourceSize.x, ubuf.sourceSize.y);
@@ -45,35 +50,63 @@ void main()
     }
 
     vec2 texel = 1.0 / max(ubuf.sourceSize, vec2(1.0));
-    float split = 0.75 * strength * texel.x;
-    vec4 base = texture(source, uv);
+    float rasterY = uv.y * ubuf.sourceSize.y;
+    float field = floor(ubuf.time * 20.0);
+
+    // Analog line timing never lands on precisely the same horizontal sample.
+    // Keep the weave below a quarter pixel so type stays readable while bright
+    // edges visibly respond to small changes in analog line timing.
+    float lineWeave = (noise(vec2(floor(rasterY), field), field) - 0.5) * 0.42 * rasterGain;
+    vec2 signalUv = clamp(uv + vec2(lineWeave * texel.x, 0.0), texel * 0.5, vec2(1.0) - texel * 0.5);
+    float split = 0.75 * rasterGain * texel.x;
+    vec4 base = texture(source, signalUv);
     vec3 colour = vec3(
-        texture(source, uv + vec2(split, 0.0)).r,
+        texture(source, signalUv + vec2(split, 0.0)).r,
         base.g,
-        texture(source, uv - vec2(split, 0.0)).b
+        texture(source, signalUv - vec2(split, 0.0)).b
     );
 
     vec3 bloom = (
-        texture(source, uv + vec2(texel.x * 1.5, 0.0)).rgb +
-        texture(source, uv - vec2(texel.x * 1.5, 0.0)).rgb +
-        texture(source, uv + vec2(0.0, texel.y * 1.5)).rgb +
-        texture(source, uv - vec2(0.0, texel.y * 1.5)).rgb
+        texture(source, signalUv + vec2(texel.x * 1.5, 0.0)).rgb +
+        texture(source, signalUv - vec2(texel.x * 1.5, 0.0)).rgb +
+        texture(source, signalUv + vec2(0.0, texel.y * 1.5)).rgb +
+        texture(source, signalUv - vec2(0.0, texel.y * 1.5)).rgb
     ) * 0.25;
-    colour += bloom * (0.14 * strength);
 
-    float scanline = 1.0 - (0.11 * strength) *
-        (0.5 + 0.5 * sin(uv.y * ubuf.sourceSize.y * 3.14159265));
-    float phosphorMask = 1.0 - (0.025 * strength) *
-        (0.5 + 0.5 * sin(uv.x * ubuf.sourceSize.x * 2.09439510));
+    // Two-pixel raster lines respond to phosphor energy instead of darkening
+    // every part of the picture equally. A tiny phase tremor suggests beam
+    // instability without turning the lines into a distracting downward crawl.
+    float luminance = dot(colour, vec3(0.2126, 0.7152, 0.0722));
+    float scanPhase = rasterY * 3.14159265 + sin(ubuf.time * 2.3) * 0.55;
+    float scanGap = pow(0.5 + 0.5 * sin(scanPhase), 1.55);
+    float scanDepth = mix(0.200, 0.090, smoothstep(0.05, 0.70, luminance));
+    float lineEnergy = 1.0 + sin(ubuf.time * 6.5 + rasterY * 0.032) * 0.16;
+    float scanline = 1.0 - scanGap * scanDepth * lineEnergy * rasterGain;
+    float phosphorMask = 1.0 - (0.025 * rasterGain) *
+        (0.5 + 0.5 * sin(signalUv.x * ubuf.sourceSize.x * 2.09439510));
     colour *= scanline * phosphorMask;
+
+    // Bloom is emitted after the raster mask, allowing bright glyphs to bleed
+    // softly into the dark gap between lines like light spreading in real glass.
+    colour += bloom * (0.14 * rasterGain);
+
+    // A camera-visible refresh band takes roughly eight seconds to cross the
+    // tube. A dim wake behind the bright edge makes its direction readable.
+    float rollPosition = fract(ubuf.time * 0.125);
+    float rollDistance = abs(fract(uv.y - rollPosition + 0.5) - 0.5);
+    float wakeDistance = abs(fract(uv.y - rollPosition + 0.455) - 0.5);
+    float refreshBand = exp(-pow(rollDistance / 0.028, 2.0));
+    float refreshWake = exp(-pow(wakeDistance / 0.075, 2.0));
+    colour *= 1.0 + (refreshBand * 0.120 - refreshWake * 0.022) * rasterGain;
 
     float vignette = uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y) * 16.0;
     vignette = mix(1.0, pow(clamp(vignette, 0.0, 1.0), 0.18), strength);
     colour *= vignette;
 
     float grain = noise(floor(uv * ubuf.sourceSize), floor(ubuf.time * 18.0));
-    colour += (grain - 0.5) * (0.022 * strength);
-    colour *= 1.0 + sin(ubuf.time * 7.0) * (0.008 * strength);
+    colour += (grain - 0.5) * (0.022 * rasterGain);
+    float powerFlutter = sin(ubuf.time * 17.0) * 0.0100 + sin(ubuf.time * 3.1) * 0.0060;
+    colour *= 1.0 + powerFlutter * rasterGain;
 
     // Frame, tube well, glass lip, and image all share the warped edge.
     float frameOpening = smoothstep(7.0, 15.0, edgePixels);

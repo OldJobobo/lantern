@@ -69,6 +69,12 @@ test("panel follows the Quattro lifecycle and keeps Frotz file access restricted
     'text: "MENU  ^M"',
     "event.key === Qt.Key_M",
     "onTapped: root.returnToMenu()",
+    "property real crtRasterOpacity: 1.0",
+    "function setCrtRasterOpacity(value)",
+    'text: "BRIGHT  " + Math.round(root.crtRasterOpacity * 100)',
+    "root.adjustCrtRasterOpacity(event.angleDelta.y > 0 ? 0.05 : -0.05)",
+    "property real effectStrength: root.crtEffects ? 1.0 : 0.0",
+    "property real rasterOpacity: root.crtRasterOpacity",
     "onClosed:",
     "property bool nativeClosePending: false",
     "readonly property var window: windowLoader.item",
@@ -160,7 +166,7 @@ test("release bundles the Qt 6 CRT shader and an effects-off fallback", () => {
   const shaderSource = fs.readFileSync(path.join(root, "shaders/crt.frag"), "utf8")
   const shaderPack = fs.readFileSync(path.join(root, "shaders/crt.frag.qsb"))
 
-  assert.equal(manifest.version, "0.1.1")
+  assert.equal(manifest.version, "0.1.2")
   for (const required of [
     "property bool crtEffects: true",
     "payload.effects === true || payload.effects === false",
@@ -179,6 +185,7 @@ test("release bundles the Qt 6 CRT shader and an effects-off fallback", () => {
 
   for (const required of [
     "#version 440", "curvature", "scanline", "bloom", "vignette", "grain",
+    "rasterOpacity", "rasterStrength", "rasterGain", "lineWeave", "scanDepth", "lineEnergy", "refreshBand", "refreshWake", "powerFlutter",
     "frameSurface", "tubeWell", "edgePixels", "frameOpening", "glassOpening", "frameRidge"
   ])
     assert.match(shaderSource, new RegExp(required))
