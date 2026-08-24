@@ -1,0 +1,47 @@
+pkgbase = frotz
+	pkgdesc = Z-machine interpreter for interactive fiction games
+	pkgver = 2.55
+	pkgrel = 1
+	url = https://gitlab.com/DavidGriffith/frotz
+	arch = x86_64
+	license = GPL
+	makedepends = libao
+	makedepends = libmodplug
+	makedepends = libsamplerate
+	makedepends = libsndfile
+	makedepends = libvorbis
+	makedepends = ncurses
+	makedepends = freetype2
+	makedepends = libjpeg-turbo
+	makedepends = libpng
+	makedepends = sdl2
+	makedepends = sdl2_mixer
+	makedepends = zlib
+	source = https://gitlab.com/DavidGriffith/frotz/-/archive/2.55/frotz-2.55.tar.gz
+	sha256sums = 766d6ee97692e93d04bed755494292ff625fb53d165982c60dbbc7275cbbc6e0
+
+pkgname = frotz-dumb
+	pkgdesc = Z-machine interpreter for interactive fiction games, for dumb terminals or scripting
+	depends = glibc
+	provides = dfrotz
+
+pkgname = frotz-ncurses
+	pkgdesc = ncurses-based Z-machine interpreter for interactive fiction games
+	depends = libao
+	depends = libmodplug
+	depends = libsamplerate
+	depends = libsndfile
+	depends = ncurses
+	provides = frotz
+
+pkgname = frotz-sdl
+	pkgdesc = Graphical Z-machine interpreter for interactive fiction games
+	depends = libmodplug
+	depends = libvorbis
+	depends = freetype2
+	depends = libjpeg-turbo
+	depends = libpng
+	depends = sdl2
+	depends = sdl2_mixer
+	depends = zlib
+	provides = sfrotz

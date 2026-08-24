@@ -1,0 +1,49 @@
+# Maintainer: Ivy Foster <iff@archlinux.org>
+# Maintainer: Alexander Epaneshnikov <alex19ep@archlinux.org>
+
+pkgbase=frotz
+pkgname=('frotz-dumb' 'frotz-ncurses' 'frotz-sdl')
+pkgver=2.55
+pkgrel=1
+pkgdesc='Z-machine interpreter for interactive fiction games'
+arch=('x86_64')
+url='https://gitlab.com/DavidGriffith/frotz'
+license=('GPL')
+makedepends=('libao' 'libmodplug' 'libsamplerate' 'libsndfile' 'libvorbis'
+             'ncurses' 'freetype2' 'libjpeg-turbo' 'libpng' 'sdl2' 'sdl2_mixer'
+             'zlib')
+source=("https://gitlab.com/DavidGriffith/frotz/-/archive/$pkgver/frotz-$pkgver.tar.gz")
+sha256sums=('766d6ee97692e93d04bed755494292ff625fb53d165982c60dbbc7275cbbc6e0')
+
+build() {
+	cd "frotz-$pkgver"
+	make PREFIX=/usr dumb ncurses sdl
+}
+
+package_frotz-dumb() {
+	pkgdesc='Z-machine interpreter for interactive fiction games, for dumb terminals or scripting'
+	provides=('dfrotz')
+	depends=('glibc')
+
+	cd "frotz-$pkgver"
+	make DESTDIR="$pkgdir" PREFIX=/usr install_dumb
+}
+
+package_frotz-ncurses() {
+	pkgdesc='ncurses-based Z-machine interpreter for interactive fiction games'
+	provides=('frotz')
+	depends=('libao' 'libmodplug' 'libsamplerate' 'libsndfile' 'ncurses')
+
+	cd "frotz-$pkgver"
+	make DESTDIR="$pkgdir" PREFIX=/usr install_frotz
+}
+
+package_frotz-sdl() {
+	pkgdesc='Graphical Z-machine interpreter for interactive fiction games'
+	provides=('sfrotz')
+	depends=('libmodplug' 'libvorbis' 'freetype2' 'libjpeg-turbo' 'libpng'
+	         'sdl2' 'sdl2_mixer' 'zlib')
+
+	cd "frotz-$pkgver"
+	make DESTDIR="$pkgdir" PREFIX=/usr install_sdl
+}

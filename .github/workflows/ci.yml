@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Contract and model tests
+        run: ./tests/run
+      - name: Verify bundled artifacts
+        run: sha256sum -c third_party/SHA256SUMS
+      - name: Build corresponding Frotz source
+        run: |
+          mkdir -p /tmp/lantern-frotz-source
+          tar -C /tmp/lantern-frotz-source -xzf third_party/frotz/source/frotz-2.55.tar.gz
+          make -C /tmp/lantern-frotz-source/frotz-2.55 PREFIX=/usr dumb
+          test -x /tmp/lantern-frotz-source/frotz-2.55/dfrotz
+      - name: Smoke bundled interpreter and story
+        run: ./tests/smoke-runtime

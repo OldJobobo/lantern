@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+runtime="$root/runtime/x86_64-linux/dfrotz"
+story="$root/games/zork1.z3"
+saves="$(mktemp -d)"
+trap 'rm -rf "$saves"' EXIT
+
+output="$(printf 'look\nquit\ny\n' | timeout 10 "$runtime" -q -m -w 76 -R "$saves" "$story")"
+grep -Fq "West of House" <<<"$output"
+grep -Fq "You are standing in an open field" <<<"$output"
+printf 'Bundled dfrotz and Zork I smoke passed.\n'
