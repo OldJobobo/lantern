@@ -12,6 +12,14 @@ omarchy plugin add https://github.com/OldJobobo/lantern.git --enable
 
 That is the complete installation. LANTERN includes its own `dfrotz` runtime and MIT-licensed copies of the complete Zork trilogy. It does not run an installer, use sudo, download assets on first launch, or require a separate package.
 
+To uninstall the plugin safely:
+
+```bash
+omarchy plugin remove jobo.lantern --yes
+```
+
+Saved games and window placement are intentionally retained under `${XDG_STATE_HOME:-~/.local/state}/lantern`. Remove that directory separately only if you also want to erase your saves.
+
 Enabling LANTERN adds its monochrome lantern icon to the right side of the Omarchy bar. It follows the bar foreground while idle; during an active story it shifts to the current theme's `yellow` color and emits a slow phosphor-like pulse. Click it to open or hide the terminal. You can also summon it from the command line:
 
 ```bash
