@@ -4,6 +4,8 @@ LANTERN is a standalone Omarchy Quattro plugin for playing Z-machine interactive
 
 It is deliberately small: the bundled Frotz interpreter runs the game; LANTERN supplies the panel, phosphor display, command entry, history, and session persistence while the Omarchy shell remains alive.
 
+![LANTERN cartridge launcher](preview.png)
+
 ## Install
 
 ```bash
