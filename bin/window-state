@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly action="${1:-}"
+readonly title="Lantern — Interactive Fiction Terminal"
+readonly hyprctl_bin="${HYPRCTL_BIN:-hyprctl}"
+readonly state_path="${LANTERN_STATE_PATH:-${XDG_STATE_HOME:-${HOME}/.local/state}/lantern/window.json}"
+readonly window_width="${LANTERN_WINDOW_WIDTH:-1020}"
+readonly window_height="${LANTERN_WINDOW_HEIGHT:-765}"
+
+find_lantern_client() {
+  "$hyprctl_bin" -j clients | jq -ce --arg title "$title" '
+    [.[] | select(.title == $title)] |
+    if length == 1 then .[0] else error("expected exactly one Lantern window") end
+  '
+}
+
+clear_rule() {
+  "$hyprctl_bin" eval '
+    if _G.__lantern_restore_rule then
+      _G.__lantern_restore_rule:set_enabled(false)
+      _G.__lantern_restore_rule = nil
+    end
+  ' >/dev/null
+}
+
+load_state() {
+  [[ -r "$state_path" ]] || return 1
+  jq -ce '
+    select(.version == 1 and (.screen | type == "string") and
+      (.x | type == "number") and (.y | type == "number"))
+  ' "$state_path"
+}
+
+find_saved_monitor() {
+  local screen="$1"
+  "$hyprctl_bin" -j monitors | jq -ce --arg screen "$screen" '
+    [.[] | select(.name == $screen)] |
+    if length == 1 then .[0] else empty end
+  '
+}
+
+case "$action" in
+  save)
+    client="$(find_lantern_client)"
+    monitor_id="$(jq -r '.monitor' <<<"$client")"
+    monitor="$($hyprctl_bin -j monitors | jq -ce --argjson id "$monitor_id" '
+      [.[] | select(.id == $id)] |
+      if length == 1 then .[0] else error("Lantern monitor not found") end
+    ')"
+
+    local_x="$(jq -nr --argjson client "$client" --argjson monitor "$monitor" '$client.at[0] - $monitor.x')"
+    local_y="$(jq -nr --argjson client "$client" --argjson monitor "$monitor" '$client.at[1] - $monitor.y')"
+
+    mkdir -p -- "$(dirname -- "$state_path")"
+    tmp="$(mktemp "${state_path}.XXXXXX")"
+    trap 'rm -f -- "$tmp"' EXIT
+    jq -n \
+      --arg screen "$(jq -r '.name' <<<"$monitor")" \
+      --argjson x "$local_x" \
+      --argjson y "$local_y" \
+      '{version: 1, screen: $screen, x: $x, y: $y}' >"$tmp"
+    chmod 600 "$tmp"
+    mv -f -- "$tmp" "$state_path"
+    trap - EXIT
+    ;;
+
+  prepare)
+    # A named, temporary initial-placement rule lets the compositor create the
+    # Wayland window at its saved geometry instead of mapping it at center and
+    # moving it afterward. The QML window is not made visible until this exits.
+    clear_rule
+    state="$(load_state)" || exit 0
+    screen="$(jq -r '.screen' <<<"$state")"
+    monitor="$(find_saved_monitor "$screen")" || exit 0
+
+    read -r logical_w logical_h reserve_left reserve_top reserve_right reserve_bottom workspace_id < <(
+      jq -r '
+        (.scale // 1) as $scale |
+        (.transform // 0) as $transform |
+        if ($transform % 2) == 1
+        then [(.height / $scale), (.width / $scale), .reserved[0], .reserved[1], .reserved[2], .reserved[3], .activeWorkspace.id]
+        else [(.width / $scale), (.height / $scale), .reserved[0], .reserved[1], .reserved[2], .reserved[3], .activeWorkspace.id]
+        end | @tsv
+      ' <<<"$monitor"
+    )
+    [[ "$workspace_id" =~ ^[1-9][0-9]*$ ]] || exit 0
+    [[ "$window_width" =~ ^[1-9][0-9]*$ && "$window_height" =~ ^[1-9][0-9]*$ ]] || exit 0
+    read -r saved_x saved_y < <(jq -r '[.x, .y] | @tsv' <<<"$state")
+
+    target_x="$(jq -nr \
+      --argjson value "$saved_x" --argjson low "$reserve_left" \
+      --argjson high "$(jq -nr --argjson w "$logical_w" --argjson ww "$window_width" --argjson r "$reserve_right" '$w - $ww - $r')" \
+      '[[$value, $low] | max, $high] | min | floor')"
+    target_y="$(jq -nr \
+      --argjson value "$saved_y" --argjson low "$reserve_top" \
+      --argjson high "$(jq -nr --argjson h "$logical_h" --argjson wh "$window_height" --argjson b "$reserve_bottom" '$h - $wh - $b')" \
+      '[[$value, $low] | max, $high] | min | floor')"
+
+    "$hyprctl_bin" eval "
+      _G.__lantern_restore_rule = hl.window_rule({
+        name = \"lantern-restore-position\",
+        match = { initial_title = \"^Lantern — Interactive Fiction Terminal$\" },
+        float = true,
+        workspace = \"${workspace_id} silent\",
+        move = \"${target_x} ${target_y}\"
+      })
+    " >/dev/null
+    ;;
+
+  clear)
+    clear_rule
+    ;;
+
+  *)
+    printf 'usage: %s save|prepare|clear\n' "${0##*/}" >&2
+    exit 2
+    ;;
+esac

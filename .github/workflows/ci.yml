@@ -18,6 +18,12 @@ jobs:
           node-version: 22
       - name: Contract and model tests
         run: ./tests/run
+      - name: Validate Qt shader assets
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes qt6-shader-baker
+          /usr/lib/qt6/bin/qsb --dump shaders/crt.frag.qsb >/dev/null
+          /usr/lib/qt6/bin/qsb --qt6 -o "$RUNNER_TEMP/crt.frag.qsb" shaders/crt.frag
       - name: Verify bundled artifacts
         run: sha256sum -c third_party/SHA256SUMS
       - name: Build corresponding Frotz source

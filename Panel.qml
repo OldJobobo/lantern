@@ -13,11 +13,14 @@ Item {
   property var manifest: null
   property bool opened: false
   property bool closingFromHost: false
+  property bool closePending: false
   property string transcript: ""
   property string statusText: "READY"
   property string storyPath: ""
   property bool startPending: false
   property string pendingStoryPath: ""
+  property bool crtEffects: true
+  property real crtTime: 0
   property string phosphor: "amber"
   property var commandHistory: []
   property int historyIndex: 0
@@ -28,6 +31,7 @@ Item {
     .replace(/^file:\/\//, "").replace(/\/$/, "")
   readonly property string runtimePath: pluginRoot + "/runtime/x86_64-linux/dfrotz"
   readonly property string bundledStoryPath: pluginRoot + "/games/zork1.z3"
+  readonly property string windowStateHelper: pluginRoot + "/bin/window-state"
   readonly property string saveRoot: stateRoot + "/lantern/saves"
   readonly property color phosphorColor: phosphor === "green" ? "#78ff83"
     : phosphor === "white" ? "#d8e7df" : "#ffb84d"
@@ -39,12 +43,14 @@ Item {
 
     if (payload.phosphor === "green" || payload.phosphor === "white" || payload.phosphor === "amber")
       phosphor = payload.phosphor
+    if (payload.effects === true || payload.effects === false)
+      crtEffects = payload.effects
 
     var requested = Model.safeStoryPath(payload.story || "")
 
+    closePending = false
     opened = true
-    window.visible = true
-    Qt.callLater(function() { commandInput.forceActiveFocus() })
+    if (!windowStatePrepare.running) windowStatePrepare.running = true
 
     if (!frotzProc.running && !startPending) {
       pendingStoryPath = requested !== "" ? requested : bundledStoryPath
@@ -54,10 +60,22 @@ Item {
   }
 
   function close() {
-    closingFromHost = true
     opened = false
+    if (!window.visible) {
+      closePending = false
+      return
+    }
+
+    closePending = true
+    if (!windowStateSave.running) windowStateSave.running = true
+  }
+
+  function finishClose() {
+    if (opened || !closePending) return
+    closingFromHost = true
     window.visible = false
     closingFromHost = false
+    closePending = false
   }
 
   function requestClose() {
@@ -98,6 +116,45 @@ Item {
     historyIndex = next.index
     commandInput.text = next.value
     commandInput.cursorPosition = commandInput.text.length
+  }
+
+  Timer {
+    interval: 50
+    repeat: true
+    running: root.opened && root.crtEffects
+    onTriggered: root.crtTime += 0.05
+  }
+
+  Timer {
+    id: clearWindowRuleTimer
+    interval: 250
+    repeat: false
+    onTriggered: if (!windowStateClear.running) windowStateClear.running = true
+  }
+
+  Process {
+    id: windowStateSave
+    command: [root.windowStateHelper, "save"]
+    onExited: root.finishClose()
+  }
+
+  Process {
+    id: windowStatePrepare
+    command: [root.windowStateHelper, "prepare"]
+    onExited: {
+      if (!root.opened) {
+        if (!windowStateClear.running) windowStateClear.running = true
+        return
+      }
+      window.visible = true
+      clearWindowRuleTimer.restart()
+      Qt.callLater(function() { commandInput.forceActiveFocus() })
+    }
+  }
+
+  Process {
+    id: windowStateClear
+    command: [root.windowStateHelper, "clear"]
   }
 
   Process {
@@ -159,7 +216,12 @@ Item {
         if (message !== "") root.appendOutput(message)
       }
     }
-    onStarted: root.statusText = "ONLINE"
+    onStarted: {
+      root.statusText = "ONLINE"
+      Qt.callLater(function() {
+        if (root.opened && window.visible) commandInput.forceActiveFocus()
+      })
+    }
     onExited: function(exitCode) {
       root.statusText = exitCode === 0 ? "SESSION ENDED" : "FROTZ UNAVAILABLE"
       if (exitCode !== 0)
@@ -171,16 +233,19 @@ Item {
     id: window
     title: "Lantern — Interactive Fiction Terminal"
     visible: false
-    color: "#111210"
-    implicitWidth: 790
-    implicitHeight: 620
-    minimumSize: Qt.size(620, 480)
+    color: "#141512"
+    implicitWidth: 1020
+    implicitHeight: 765
+    minimumSize: Qt.size(1020, 765)
+    maximumSize: Qt.size(1020, 765)
+    Keys.onEscapePressed: root.requestClose()
 
     onVisibleChanged: {
       if (!visible && root.opened && !root.closingFromHost) root.requestClose()
     }
 
     Rectangle {
+      id: terminalShell
       anchors.fill: parent
       color: "#141512"
 
@@ -188,7 +253,8 @@ Item {
         id: bezel
         anchors.fill: parent
         anchors.margins: 18
-        radius: 18
+        z: 1
+        radius: 22
         color: "#24241f"
         border.width: 2
         border.color: "#3a3931"
@@ -230,6 +296,23 @@ Item {
           textFormat: Text.PlainText
         }
 
+        Item {
+          id: dragHandle
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.top: parent.top
+          height: 42
+          z: 30
+
+          HoverHandler { cursorShape: Qt.SizeAllCursor }
+
+          DragHandler {
+            target: null
+            acceptedButtons: Qt.LeftButton
+            onActiveChanged: if (active) window.startSystemMove()
+          }
+        }
+
         Rectangle {
           id: screen
           anchors.left: parent.left
@@ -239,140 +322,143 @@ Item {
           anchors.margins: 28
           anchors.topMargin: 42
           anchors.bottomMargin: 34
-          radius: 34
+          radius: root.crtEffects ? 0 : 58
           color: root.phosphor === "amber" ? "#120d06" : root.phosphor === "green" ? "#061008" : "#0a0f0d"
-          border.width: 2
+          border.width: root.crtEffects ? 0 : 2
           border.color: "#050604"
           clip: true
 
-          Rectangle {
+          Item {
+            id: crtContent
             anchors.fill: parent
-            color: "transparent"
-            border.width: 12
-            border.color: Qt.rgba(0, 0, 0, 0.34)
-            radius: screen.radius
-            z: 20
-          }
 
-          Flickable {
-            id: transcriptView
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.bottom: commandRow.top
-            anchors.margins: 24
-            anchors.bottomMargin: 8
-            contentWidth: width
-            contentHeight: Math.max(height, transcriptText.height)
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
-
-            Text {
-              id: transcriptGlow
-              x: 1
-              y: 1
-              width: transcriptView.width
-              text: root.transcript
-              color: Qt.rgba(root.phosphorColor.r, root.phosphorColor.g, root.phosphorColor.b, 0.18)
-              font.family: "monospace"
-              font.pixelSize: 17
-              font.letterSpacing: 0.25
-              lineHeight: 1.18
-              wrapMode: Text.Wrap
-              textFormat: Text.PlainText
+            Rectangle {
+              anchors.fill: parent
+              color: screen.color
             }
 
-            Text {
-              id: transcriptText
-              width: transcriptView.width
-              text: root.transcript
-              color: root.phosphorColor
-              font.family: "monospace"
-              font.pixelSize: 17
-              font.letterSpacing: 0.25
-              lineHeight: 1.18
-              wrapMode: Text.Wrap
-              textFormat: Text.PlainText
-            }
-          }
-
-          Row {
-            id: commandRow
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.leftMargin: 24
-            anchors.rightMargin: 24
-            anchors.bottomMargin: 22
-            spacing: 8
-
-            Text {
-              text: ">"
-              color: root.phosphorColor
-              font.family: "monospace"
-              font.pixelSize: 18
-              font.bold: true
-              textFormat: Text.PlainText
-            }
-
-            TextInput {
-              id: commandInput
-              width: parent.width - 28
-              color: root.phosphorColor
-              selectionColor: root.phosphorDim
-              selectedTextColor: "#080a07"
-              font.family: "monospace"
-              font.pixelSize: 18
-              font.letterSpacing: 0.3
-              activeFocusOnTab: true
-              enabled: frotzProc.running
+            Flickable {
+              id: transcriptView
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.top: parent.top
+              anchors.bottom: commandRow.top
+              anchors.leftMargin: 52
+              anchors.rightMargin: 52
+              anchors.topMargin: 40
+              anchors.bottomMargin: 10
+              contentWidth: width
+              contentHeight: Math.max(height, transcriptText.height)
               clip: true
-              onAccepted: root.submitCommand()
-              Keys.onUpPressed: function(event) { root.stepHistory(-1); event.accepted = true }
-              Keys.onDownPressed: function(event) { root.stepHistory(1); event.accepted = true }
+              boundsBehavior: Flickable.StopAtBounds
 
-              cursorDelegate: Rectangle {
-                width: 9
+              Text {
+                id: transcriptGlow
+                x: 1
+                y: 1
+                width: transcriptView.width
+                text: root.transcript
+                color: Qt.rgba(root.phosphorColor.r, root.phosphorColor.g, root.phosphorColor.b, 0.18)
+                font.family: "monospace"
+                font.pixelSize: 17
+                font.letterSpacing: 0.25
+                lineHeight: 1.18
+                wrapMode: Text.NoWrap
+                textFormat: Text.PlainText
+              }
+
+              Text {
+                id: transcriptText
+                width: transcriptView.width
+                text: root.transcript
                 color: root.phosphorColor
-                SequentialAnimation on opacity {
-                  loops: Animation.Infinite
-                  NumberAnimation { to: 0.18; duration: 520 }
-                  NumberAnimation { to: 1; duration: 520 }
+                font.family: "monospace"
+                font.pixelSize: 17
+                font.letterSpacing: 0.25
+                lineHeight: 1.18
+                wrapMode: Text.NoWrap
+                textFormat: Text.PlainText
+              }
+            }
+
+            Row {
+              id: commandRow
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.bottom: parent.bottom
+              anchors.leftMargin: 52
+              anchors.rightMargin: 52
+              anchors.bottomMargin: 36
+              spacing: 8
+
+              Text {
+                text: ">"
+                color: root.phosphorColor
+                font.family: "monospace"
+                font.pixelSize: 18
+                font.bold: true
+                textFormat: Text.PlainText
+              }
+
+              TextInput {
+                id: commandInput
+                width: parent.width - 28
+                color: root.phosphorColor
+                selectionColor: root.phosphorDim
+                selectedTextColor: "#080a07"
+                font.family: "monospace"
+                font.pixelSize: 18
+                font.letterSpacing: 0.3
+                activeFocusOnTab: true
+                enabled: frotzProc.running
+                clip: true
+                onAccepted: root.submitCommand()
+                Keys.onUpPressed: function(event) { root.stepHistory(-1); event.accepted = true }
+                Keys.onDownPressed: function(event) { root.stepHistory(1); event.accepted = true }
+
+                cursorDelegate: Rectangle {
+                  id: blockCursor
+                  property real blinkOpacity: 1.0
+                  width: 9
+                  color: root.phosphorColor
+                  opacity: root.crtEffects ? blinkOpacity : 1.0
+                  SequentialAnimation on blinkOpacity {
+                    running: root.crtEffects
+                    loops: Animation.Infinite
+                    NumberAnimation { from: 1.0; to: 0.18; duration: 520 }
+                    NumberAnimation { from: 0.18; to: 1.0; duration: 520 }
+                  }
                 }
               }
             }
           }
 
-          Column {
+          ShaderEffectSource {
+            id: crtSource
             anchors.fill: parent
-            spacing: 3
-            opacity: 0.13
+            visible: false
+            sourceItem: crtContent
+            hideSource: root.crtEffects
+            live: root.crtEffects
+            textureSize: Qt.size(Math.max(1, Math.round(screen.width)), Math.max(1, Math.round(screen.height)))
+          }
+
+          ShaderEffect {
+            id: crtShader
+            anchors.fill: parent
             z: 10
-            Repeater {
-              model: Math.ceil(screen.height / 5)
-              Rectangle {
-                width: screen.width
-                height: 1
-                color: "#000000"
-              }
-            }
+            visible: root.crtEffects
+            blending: true
+            property variant source: crtSource
+            property size sourceSize: Qt.size(Math.max(1, crtSource.textureSize.width), Math.max(1, crtSource.textureSize.height))
+            property real time: root.crtTime
+            property real effectStrength: root.crtEffects ? 1.0 : 0.0
+            fragmentShader: Qt.resolvedUrl("shaders/crt.frag.qsb")
           }
 
-          Rectangle {
-            anchors.fill: parent
-            color: "transparent"
-            border.width: 18
-            border.color: Qt.rgba(0, 0, 0, 0.22)
-            radius: screen.radius
-            z: 19
-          }
-
-          MouseArea {
-            anchors.fill: parent
+          TapHandler {
             acceptedButtons: Qt.LeftButton
-            onClicked: commandInput.forceActiveFocus()
-            z: 21
-            propagateComposedEvents: true
+            onTapped: commandInput.forceActiveFocus()
           }
         }
 

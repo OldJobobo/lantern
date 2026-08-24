@@ -2,15 +2,24 @@
   "schemaVersion": 1,
   "id": "jobo.lantern",
   "name": "Lantern",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "OldJobobo",
   "license": "MIT AND GPL-2.0-or-later",
   "description": "Play Z-machine interactive fiction in an early-1980s monochrome CRT panel.",
   "kinds": [
-    "panel"
+    "panel",
+    "bar-widget"
   ],
   "keepLoaded": true,
   "entryPoints": {
-    "panel": "Panel.qml"
+    "panel": "Panel.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Lantern",
+    "description": "Open the Lantern interactive fiction terminal",
+    "category": "Fun",
+    "allowMultiple": false,
+    "defaultSection": "right"
   }
 }
