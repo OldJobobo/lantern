@@ -22,8 +22,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes qt6-shader-baker
-          /usr/lib/qt6/bin/qsb --dump shaders/crt.frag.qsb >/dev/null
-          /usr/lib/qt6/bin/qsb --qt6 -o "$RUNNER_TEMP/crt.frag.qsb" shaders/crt.frag
+          /usr/lib/qt6/bin/qsb -o "$RUNNER_TEMP/crt.frag.qsb" shaders/crt.frag
+          /usr/lib/qt6/bin/qsb --dump "$RUNNER_TEMP/crt.frag.qsb" >/dev/null
       - name: Verify bundled artifacts
         run: sha256sum -c third_party/SHA256SUMS
       - name: Build corresponding Frotz source
