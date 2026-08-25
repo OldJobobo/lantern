@@ -27,6 +27,8 @@ Item {
   property real crtRasterOpacity: 1.0
   property real crtRasterGain: 2.25
   property real crtTime: 0
+  property real channelGlitch: 0.0
+  property real channelGlitchSeed: 0.0
   property string phosphor: "amber"
   property color themePhosphorColor: "#d8e7df"
   property color themeScreenColor: "#0a0f0d"
@@ -34,12 +36,16 @@ Item {
   property int historyLimit: 100
   property int transcriptLineLimit: 1200
   property real dialStep: 0.05
+  property real windowScale: 1.0
   property string bundledConfigText: ""
   property string userConfigText: ""
   property var commandHistory: []
   property int historyIndex: 0
 
   readonly property var window: windowLoader.item
+  readonly property int baseWindowWidth: 1020
+  readonly property int baseWindowHeight: 765
+  readonly property string windowScaleLabel: windowScale === 1.0 ? "1" : windowScale.toFixed(2).replace(/0$/, "")
 
   readonly property string homePath: Quickshell.env("HOME") || "/tmp"
   readonly property string stateRoot: Quickshell.env("XDG_STATE_HOME") || homePath + "/.local/state"
@@ -100,8 +106,23 @@ Item {
     themeScreenColor = values.background || values.bg || values.color0 || "#0a0f0d"
   }
 
+  function triggerChannelGlitch() {
+    if (!crtEffects) {
+      channelGlitch = 0.0
+      return
+    }
+    channelGlitchSeed = (channelGlitchSeed + 0.371) % 1.0
+    channelSwitchGlitch.restart()
+  }
+
   function cyclePhosphor() {
     phosphor = phosphor === "amber" ? "green" : phosphor === "green" ? "theme" : "amber"
+    triggerChannelGlitch()
+  }
+
+  function cycleWindowScale() {
+    windowScale = windowScale === 1.0 ? 1.25 : windowScale === 1.25 ? 1.5 : 1.0
+    Qt.callLater(function() { root.focusCurrentView() })
   }
 
   function configNumber(value, fallback, minimum, maximum) {
@@ -143,7 +164,11 @@ Item {
     if (payload.effects === true || payload.effects === false)
       crtEffects = payload.effects
 
-    var requested = Model.safeStoryPath(payload.story || "")
+    var requested = Model.bundledStoryPath(payload.story || "", [
+      bundledStoryPath,
+      zork2StoryPath,
+      zork3StoryPath
+    ])
 
     closePending = false
     nativeClosePending = false
@@ -334,6 +359,46 @@ Item {
     onTriggered: root.crtTime += 0.05
   }
 
+  SequentialAnimation {
+    id: channelSwitchGlitch
+
+    PropertyAction { target: root; property: "channelGlitch"; value: 0.0 }
+    NumberAnimation {
+      target: root
+      property: "channelGlitch"
+      from: 0.0
+      to: 1.0
+      duration: 28
+      easing.type: Easing.OutQuad
+    }
+    PauseAnimation { duration: 96 }
+    NumberAnimation {
+      target: root
+      property: "channelGlitch"
+      from: 1.0
+      to: 0.48
+      duration: 72
+      easing.type: Easing.InQuad
+    }
+    NumberAnimation {
+      target: root
+      property: "channelGlitch"
+      from: 0.48
+      to: 0.96
+      duration: 34
+      easing.type: Easing.OutQuad
+    }
+    PauseAnimation { duration: 54 }
+    NumberAnimation {
+      target: root
+      property: "channelGlitch"
+      from: 0.96
+      to: 0.0
+      duration: 340
+      easing.type: Easing.OutExpo
+    }
+  }
+
   Timer {
     id: clearWindowRuleTimer
     interval: 250
@@ -390,7 +455,7 @@ Item {
         root.appendOutput("Lantern's bundled x86-64 dfrotz runtime is missing or not executable. Reinstall the plugin from its official repository.")
         return
       }
-      storyCheck.command = ["test", "-r", root.pendingStoryPath]
+      storyCheck.command = ["test", "-f", root.pendingStoryPath]
       storyCheck.running = true
     }
   }
@@ -401,7 +466,7 @@ Item {
       if (exitCode !== 0) {
         root.startPending = false
         root.statusText = "NO STORY"
-        root.appendOutput("The selected story could not be read. Reinstall Lantern to restore the bundled Zork trilogy, or summon it with another absolute story path.")
+        root.appendOutput("The selected bundled story is not a regular file. Reinstall Lantern to restore the bundled Zork trilogy.")
         return
       }
       root.statusText = "WARMING UP"
@@ -453,10 +518,10 @@ Item {
     title: "Lantern — Interactive Fiction Terminal"
     visible: false
     color: "#141512"
-    implicitWidth: 1020
-    implicitHeight: 765
-    minimumSize: Qt.size(1020, 765)
-    maximumSize: Qt.size(1020, 765)
+    implicitWidth: Math.round(root.baseWindowWidth * root.windowScale)
+    implicitHeight: Math.round(root.baseWindowHeight * root.windowScale)
+    minimumSize: Qt.size(implicitWidth, implicitHeight)
+    maximumSize: Qt.size(implicitWidth, implicitHeight)
 
     function focusCurrentView() {
       if (root.viewMode === "menu") launcherScreen.forceActiveFocus()
@@ -489,7 +554,10 @@ Item {
 
     Rectangle {
       id: terminalShell
-      anchors.fill: parent
+      width: root.baseWindowWidth
+      height: root.baseWindowHeight
+      transformOrigin: Item.TopLeft
+      scale: root.windowScale
       color: "#141512"
 
       Rectangle {
@@ -564,7 +632,7 @@ Item {
           anchors.bottom: parent.bottom
           anchors.margins: 28
           anchors.topMargin: 42
-          anchors.bottomMargin: 34
+          anchors.bottomMargin: 70
           radius: root.crtEffects ? 0 : 58
           color: root.screenColor
           border.width: root.crtEffects ? 0 : 2
@@ -880,7 +948,7 @@ Item {
             sourceItem: crtContent
             hideSource: root.crtEffects
             live: root.crtEffects
-            textureSize: Qt.size(Math.max(1, Math.round(screen.width)), Math.max(1, Math.round(screen.height)))
+            textureSize: Qt.size(Math.max(1, Math.round(screen.width * root.windowScale)), Math.max(1, Math.round(screen.height * root.windowScale)))
           }
 
           ShaderEffect {
@@ -895,6 +963,8 @@ Item {
             property real effectStrength: root.crtEffects ? 1.0 : 0.0
             property real rasterOpacity: root.crtRasterOpacity
             property real rasterGain: root.crtRasterGain
+            property real channelGlitch: root.channelGlitch
+            property real channelGlitchSeed: root.channelGlitchSeed
             fragmentShader: Qt.resolvedUrl("shaders/crt.frag.qsb")
           }
 
@@ -904,35 +974,122 @@ Item {
           }
         }
 
+        Rectangle {
+          id: controlShelf
+          width: 580
+          height: 54
+          anchors.right: parent.right
+          anchors.rightMargin: 20
+          anchors.bottom: parent.bottom
+          anchors.bottomMargin: 6
+          z: 31
+          radius: 2
+          color: "#0d0e0c"
+          border.width: 2
+          border.color: "#080907"
+
+          Rectangle {
+            anchors.fill: parent
+            anchors.margins: 3
+            radius: 1
+            color: "#191a16"
+            border.width: 1
+            border.color: "#424238"
+          }
+
+          Repeater {
+            model: [{ x: 9, y: 9 }, { x: 565, y: 9 }, { x: 9, y: 39 }, { x: 565, y: 39 }]
+
+            delegate: Rectangle {
+              required property var modelData
+              x: modelData.x
+              y: modelData.y
+              width: 6
+              height: 6
+              radius: 3
+              color: "#0a0b09"
+              border.width: 1
+              border.color: "#4a4a3f"
+
+              Rectangle {
+                width: 4
+                height: 1
+                anchors.centerIn: parent
+                rotation: 28
+                color: "#555548"
+              }
+            }
+          }
+        }
+
+        Rectangle {
+          width: 206
+          height: 30
+          anchors.left: parent.left
+          anchors.leftMargin: 28
+          anchors.bottom: parent.bottom
+          anchors.bottomMargin: 18
+          z: 32
+          radius: 1
+          color: "#1b1c18"
+          border.width: 1
+          border.color: "#393930"
+
+          Text {
+            anchors.left: parent.left
+            anchors.leftMargin: 12
+            anchors.verticalCenter: parent.verticalCenter
+            text: "LANTERN   MODEL ZM-80"
+            color: "#8f8c7c"
+            font.family: "monospace"
+            font.pixelSize: 9
+            font.bold: true
+            font.letterSpacing: 1.0
+            textFormat: Text.PlainText
+          }
+        }
+
         Item {
           id: crtDial
           property real dragStart: 1.0
           readonly property real dialAngle: -135 + root.crtRasterOpacity * 270
-          width: 116
-          height: 30
+          width: 146
+          height: 46
           anchors.right: parent.right
-          anchors.rightMargin: 20
+          anchors.rightMargin: 30
           anchors.bottom: parent.bottom
-          anchors.bottomMargin: 4
+          anchors.bottomMargin: 10
           z: 32
 
-          Text {
+          Column {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: 1
-            text: "BRIGHT  " + Math.round(root.crtRasterOpacity * 100)
-            color: "#777466"
-            font.family: "monospace"
-            font.pixelSize: 8
-            font.bold: true
-            font.letterSpacing: 0.7
-            textFormat: Text.PlainText
+            spacing: 2
+
+            Text {
+              text: "BRIGHT  " + Math.round(root.crtRasterOpacity * 100)
+              color: "#aaa694"
+              font.family: "monospace"
+              font.pixelSize: 9
+              font.bold: true
+              font.letterSpacing: 0.8
+              textFormat: Text.PlainText
+            }
+
+            Text {
+              text: "INTENSITY"
+              color: "#5f5e53"
+              font.family: "monospace"
+              font.pixelSize: 7
+              font.letterSpacing: 0.7
+              textFormat: Text.PlainText
+            }
           }
 
           Item {
             id: dialFace
-            width: 30
-            height: 30
+            width: 44
+            height: 44
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
 
@@ -944,10 +1101,10 @@ Item {
                 readonly property real tickAngle: -135 + index * 45
                 readonly property real radians: tickAngle * Math.PI / 180
                 width: 1
-                height: index === 0 || index === 6 ? 4 : 3
+                height: index === 0 || index === 6 ? 5 : 4
                 radius: 1
-                x: dialFace.width / 2 + Math.sin(radians) * 13 - width / 2
-                y: dialFace.height / 2 - Math.cos(radians) * 13 - height / 2
+                x: dialFace.width / 2 + Math.sin(radians) * 20 - width / 2
+                y: dialFace.height / 2 - Math.cos(radians) * 20 - height / 2
                 rotation: tickAngle
                 color: "#666357"
                 opacity: 0.8
@@ -955,9 +1112,9 @@ Item {
             }
 
             Rectangle {
-              width: 21
-              height: 21
-              radius: 11
+              width: 32
+              height: 32
+              radius: 16
               anchors.centerIn: parent
               color: "#24251f"
               border.width: 1
@@ -966,15 +1123,15 @@ Item {
               Rectangle {
                 anchors.fill: parent
                 anchors.margins: 2
-                radius: 9
+                radius: 14
                 color: "#303128"
                 border.width: 1
                 border.color: "#48483d"
               }
 
               Rectangle {
-                width: 11
-                height: 3
+                width: 15
+                height: 4
                 radius: 2
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.top
@@ -989,7 +1146,7 @@ Item {
 
                 Rectangle {
                   width: 2
-                  height: 7
+                  height: 9
                   radius: 1
                   anchors.horizontalCenter: parent.horizontalCenter
                   anchors.top: parent.top
@@ -1021,52 +1178,64 @@ Item {
 
         Item {
           id: phosphorSelector
-          width: 118
-          height: 30
+          width: 156
+          height: 46
           anchors.right: crtDial.left
           anchors.rightMargin: 14
           anchors.bottom: parent.bottom
-          anchors.bottomMargin: 4
+          anchors.bottomMargin: 10
           z: 32
 
-          Text {
+          Column {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: 1
-            text: "COLOR  " + root.phosphorLabel
-            color: "#777466"
-            font.family: "monospace"
-            font.pixelSize: 8
-            font.bold: true
-            font.letterSpacing: 0.7
-            textFormat: Text.PlainText
+            spacing: 2
+
+            Text {
+              text: "COLOR  " + root.phosphorLabel
+              color: "#aaa694"
+              font.family: "monospace"
+              font.pixelSize: 9
+              font.bold: true
+              font.letterSpacing: 0.8
+              textFormat: Text.PlainText
+            }
+
+            Text {
+              text: "PHOSPHOR"
+              color: "#5f5e53"
+              font.family: "monospace"
+              font.pixelSize: 7
+              font.letterSpacing: 0.7
+              textFormat: Text.PlainText
+            }
           }
 
           Item {
             id: rgbButton
-            width: 39
-            height: 27
+            width: 54
+            height: 40
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
 
             Rectangle {
-              width: 37
-              height: 23
-              radius: 3
+              width: 52
+              height: 35
+              radius: 4
               anchors.horizontalCenter: parent.horizontalCenter
               anchors.top: parent.top
-              anchors.topMargin: 3
-              color: "#11120f"
+              anchors.topMargin: 4
+              color: "#0e0f0d"
               border.width: 1
               border.color: "#070806"
             }
 
             Rectangle {
-              width: 35
-              height: 21
-              radius: 3
+              width: 48
+              height: 31
+              radius: 4
               anchors.horizontalCenter: parent.horizontalCenter
-              y: rgbTap.pressed ? 4 : 2
+              y: rgbTap.pressed ? 5 : 2
               color: rgbTap.pressed ? "#292a23" : "#37382f"
               border.width: 1
               border.color: rgbTap.pressed ? "#505044" : "#5f5f51"
@@ -1076,7 +1245,7 @@ Item {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.margins: 2
-                height: 3
+                height: 4
                 radius: 2
                 color: "#777768"
                 opacity: rgbTap.pressed ? 0.18 : 0.38
@@ -1097,7 +1266,7 @@ Item {
                     text: modelData.letter
                     color: modelData.color
                     font.family: "monospace"
-                    font.pixelSize: 8
+                    font.pixelSize: 9
                     font.bold: true
                     textFormat: Text.PlainText
                   }
@@ -1106,7 +1275,7 @@ Item {
             }
 
             Rectangle {
-              width: 9
+              width: 14
               height: 2
               radius: 1
               anchors.horizontalCenter: parent.horizontalCenter
@@ -1131,16 +1300,177 @@ Item {
           }
         }
 
-        Rectangle {
-          width: 7
-          height: 7
-          radius: 4
+        Item {
+          id: scaleSelector
+          width: 130
+          height: 46
           anchors.right: phosphorSelector.left
-          anchors.rightMargin: 10
+          anchors.rightMargin: 14
           anchors.bottom: parent.bottom
-          anchors.bottomMargin: 16
-          color: frotzProc.running ? root.phosphorColor : "#413f37"
-          opacity: frotzProc.running ? 0.75 : 0.45
+          anchors.bottomMargin: 10
+          z: 32
+
+          Column {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 2
+
+            Text {
+              text: "SCALE"
+              color: "#aaa694"
+              font.family: "monospace"
+              font.pixelSize: 9
+              font.bold: true
+              font.letterSpacing: 0.8
+              textFormat: Text.PlainText
+            }
+
+            Text {
+              text: "DISPLAY"
+              color: "#5f5e53"
+              font.family: "monospace"
+              font.pixelSize: 7
+              font.letterSpacing: 0.7
+              textFormat: Text.PlainText
+            }
+          }
+
+          Item {
+            width: 58
+            height: 40
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+
+            Rectangle {
+              width: 56
+              height: 35
+              radius: 4
+              anchors.horizontalCenter: parent.horizontalCenter
+              anchors.top: parent.top
+              anchors.topMargin: 4
+              color: "#0e0f0d"
+              border.width: 1
+              border.color: "#070806"
+            }
+
+            Rectangle {
+              width: 52
+              height: 31
+              radius: 4
+              anchors.horizontalCenter: parent.horizontalCenter
+              y: scaleTap.pressed ? 5 : 2
+              color: scaleTap.pressed ? "#292a23" : "#37382f"
+              border.width: 1
+              border.color: scaleTap.pressed ? "#505044" : "#5f5f51"
+
+              Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 2
+                height: 4
+                radius: 2
+                color: "#777768"
+                opacity: scaleTap.pressed ? 0.18 : 0.38
+              }
+
+              Text {
+                anchors.centerIn: parent
+                anchors.verticalCenterOffset: 1
+                text: root.windowScaleLabel
+                color: root.phosphorColor
+                font.family: "monospace"
+                font.pixelSize: 9
+                font.bold: true
+                font.letterSpacing: 0.4
+                textFormat: Text.PlainText
+              }
+            }
+
+            Rectangle {
+              width: 14
+              height: 2
+              radius: 1
+              anchors.horizontalCenter: parent.horizontalCenter
+              anchors.bottom: parent.bottom
+              color: root.phosphorColor
+              opacity: 0.72
+            }
+
+            HoverHandler {
+              id: scaleHover
+              cursorShape: Qt.PointingHandCursor
+            }
+
+            TapHandler {
+              id: scaleTap
+              acceptedButtons: Qt.LeftButton
+              onTapped: root.cycleWindowScale()
+            }
+
+            ToolTip.visible: scaleHover.hovered
+            ToolTip.text: "Window scale: " + root.windowScaleLabel + "× · click to cycle"
+          }
+        }
+
+        Item {
+          width: 76
+          height: 30
+          anchors.right: scaleSelector.left
+          anchors.rightMargin: 12
+          anchors.bottom: parent.bottom
+          anchors.bottomMargin: 18
+          z: 32
+
+          Rectangle {
+            width: 10
+            height: 10
+            radius: 5
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            color: frotzProc.running ? root.phosphorColor : "#413f37"
+            border.width: 1
+            border.color: frotzProc.running ? root.phosphorDim : "#24251f"
+            opacity: frotzProc.running ? 0.82 : 0.55
+
+            Rectangle {
+              width: 3
+              height: 3
+              radius: 2
+              anchors.left: parent.left
+              anchors.leftMargin: 2
+              anchors.top: parent.top
+              anchors.topMargin: 2
+              color: "#ffffff"
+              opacity: frotzProc.running ? 0.55 : 0.12
+            }
+          }
+
+          Column {
+            anchors.left: parent.left
+            anchors.leftMargin: 18
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 1
+
+            Text {
+              text: frotzProc.running ? "SIGNAL" : "STANDBY"
+              color: frotzProc.running ? "#aaa694" : "#6c6a5e"
+              font.family: "monospace"
+              font.pixelSize: 8
+              font.bold: true
+              font.letterSpacing: 0.7
+              textFormat: Text.PlainText
+            }
+
+            Text {
+              text: frotzProc.running ? "LOCKED" : "READY"
+              color: "#56554b"
+              font.family: "monospace"
+              font.pixelSize: 7
+              font.letterSpacing: 0.6
+              textFormat: Text.PlainText
+            }
+          }
         }
       }
     }

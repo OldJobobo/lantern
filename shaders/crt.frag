@@ -11,6 +11,8 @@ layout(std140, binding = 0) uniform buf {
     float effectStrength;
     float rasterOpacity;
     float rasterGain;
+    float channelGlitch;
+    float channelGlitchSeed;
 } ubuf;
 
 layout(binding = 1) uniform sampler2D source;
@@ -60,12 +62,41 @@ void main()
     float lineWeave = (noise(vec2(floor(rasterY), field), field) - 0.5) * 0.42 * rasterLevel;
     vec2 signalUv = clamp(uv + vec2(lineWeave * texel.x, 0.0), texel * 0.5, vec2(1.0) - texel * 0.5);
     float split = 0.75 * rasterLevel * texel.x;
-    vec4 base = texture(source, signalUv);
+
+    // Changing the RGB selector briefly knocks the three channels out of lock.
+    // Quantized rows make the displacement read as stacked switcher slices,
+    // while the low-level split remains analog and continuous between changes.
+    float glitch = clamp(ubuf.channelGlitch, 0.0, 1.0);
+    float stackRow = floor(uv.y * 22.0);
+    float switchFrame = floor(ubuf.time * 38.0) + ubuf.channelGlitchSeed * 97.0;
+    float stackNoise = noise(vec2(stackRow, ubuf.channelGlitchSeed * 53.0), switchFrame);
+    float stackGate = step(1.0 - glitch * 0.90, stackNoise);
+    float stackDirection = step(0.5, noise(vec2(stackRow + 11.0, 4.0), switchFrame)) * 2.0 - 1.0;
+    float stackShift = stackGate * stackDirection * (10.0 + 48.0 * stackNoise) * glitch * texel.x;
+    float verticalKick = stackGate * (stackNoise - 0.5) * 5.0 * glitch * texel.y;
+    float channelKick = glitch * (4.0 + 19.0 * glitch) * texel.x;
+    vec2 glitchUv = clamp(signalUv + vec2(stackShift, verticalKick), texel * 0.5, vec2(1.0) - texel * 0.5);
+    vec4 base = texture(source, glitchUv);
     vec3 colour = vec3(
-        texture(source, signalUv + vec2(split, 0.0)).r,
+        texture(source, clamp(glitchUv + vec2(split + channelKick * (0.65 + stackGate), 0.0), texel * 0.5, vec2(1.0) - texel * 0.5)).r,
         base.g,
-        texture(source, signalUv - vec2(split, 0.0)).b
+        texture(source, clamp(glitchUv - vec2(split + channelKick * (0.55 + stackGate * 1.35), 0.0), texel * 0.5, vec2(1.0) - texel * 0.5)).b
     );
+
+    // A channel switch should momentarily look broken, not merely soft. Coarse
+    // noise, bright dropout flecks, and cyan/magenta sync bars make the burst
+    // readable even over an almost-black screen before the signal relocks.
+    vec2 staticCell = floor(uv * ubuf.sourceSize * vec2(0.42, 0.30));
+    float staticNoise = noise(staticCell, switchFrame + stackRow * 0.17);
+    float staticGate = step(0.50 - glitch * 0.16, staticNoise) * glitch;
+    float dropout = step(0.91 - glitch * 0.12, noise(staticCell + 19.0, switchFrame + 7.0));
+    vec3 switchStatic = mix(vec3(0.03), vec3(0.95), staticNoise);
+    switchStatic += dropout * vec3(0.65, 0.92, 0.78);
+    colour = mix(colour, switchStatic, staticGate * (0.16 + stackGate * 0.24));
+
+    float syncLine = step(0.90, noise(vec2(stackRow, 31.0), switchFrame + 13.0)) * glitch;
+    vec3 channelBar = stackDirection > 0.0 ? vec3(0.85, 0.04, 0.72) : vec3(0.02, 0.82, 0.92);
+    colour += channelBar * syncLine * (0.12 + 0.22 * glitch);
 
     vec3 bloom = (
         texture(source, signalUv + vec2(texel.x * 1.5, 0.0)).rgb +

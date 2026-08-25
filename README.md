@@ -36,14 +36,9 @@ The bundled runtime currently supports **x86-64 glibc Linux**, matching current 
 
 LANTERN opens on its cartridge launcher instead of starting a game immediately. The current release includes **Zork I**, **Zork II**, and **Zork III**; choose one with the arrow keys, `Enter`, the matching `1`–`3` key, or a pointer.
 
-You can bypass the launcher and summon another legally obtained `.z1`–`.z8`, `.zblorb`, or `.blorb` story by absolute path:
+For safety, the public summon interface launches only the three bundled cartridges. Arbitrary filesystem paths are rejected before the native Z-machine interpreter is started.
 
-```bash
-omarchy-shell shell summon jobo.lantern \
-  '{"story":"/absolute/path/game.z5","phosphor":"green"}'
-```
-
-The illustrated RGB button cycles between amber, green phosphor, and an Omarchy-aware mode that uses the active theme's terminal foreground and background colors. Summon payloads and `lantern.toml` accept `amber`, `green`, or `theme`; the legacy `white` value remains available for compatibility. The CRT shader is enabled by default. Version 0.1.2 gives the raster adjustable analog life: content-aware scanline depth, subpixel line weave, bloom between illuminated lines, a slow refresh band, and low-level power flutter. Pass `"effects":false` for an undistorted, motion-free display:
+The illustrated RGB button cycles between amber, green phosphor, and an Omarchy-aware mode that uses the active theme's terminal foreground and background colors. Each button press briefly knocks the channels into stacked horizontal slices before they settle into the new palette, like a hardware switcher catching sync. Summon payloads and `lantern.toml` accept `amber`, `green`, or `theme`; the legacy `white` value remains available for compatibility. The CRT shader gives the raster adjustable analog life: content-aware scanline depth, subpixel line weave, bloom between illuminated lines, a slow refresh band, and low-level power flutter. Pass `"effects":false` for an undistorted, motion-free display:
 
 ```bash
 omarchy-shell shell summon jobo.lantern \
@@ -68,6 +63,7 @@ LANTERN watches both files and reloads changes while the Omarchy shell is runnin
 - **Bar icon:** open or hide LANTERN
 - **Drag the top label strip:** move the terminal
 - **RGB button:** cycle amber, green-phosphor, and current Omarchy theme colors
+- **SCALE button:** cycle the Lantern window independently through 1×, 1.25×, and 1.5×
 - **BRIGHT dial:** drag or scroll the illustrated CRT control to adjust the animated raster layer without changing the tube geometry
 - **Launcher Up/Down:** select a bundled story
 - **Launcher Enter or 1–3:** boot the selected story
@@ -80,7 +76,7 @@ Closing the native window also preserves the game process. LANTERN rebuilds the 
 
 LANTERN remembers the window's monitor and monitor-relative position when it closes. Before the next window is mapped, it installs a temporary Hyprland initial-placement rule for that saved geometry, then removes the rule after creation. The window therefore starts at its persistent location rather than appearing at center and moving afterward. If the saved monitor is unavailable, the compositor's normal placement is left untouched.
 
-The terminal uses a fixed 1020×765 logical-pixel window calibrated for Frotz's 76-column output. Transcript lines never soft-wrap and sit inside a curvature-safe inset so the illustrated tube edge cannot obscure them. The top label strip invokes native window movement. The illustrated bezel, tube well, glass lip, and distorted image share one shader-derived curved edge so the physical frame follows the CRT geometry.
+The terminal uses a 1020×765 logical-pixel base calibrated for Frotz's 76-column output. Its SCALE button enlarges that complete surface to 1.25× or 1.5× without changing the rest of the Omarchy shell. Transcript lines never soft-wrap and sit inside a curvature-safe inset so the illustrated tube edge cannot obscure them. The top label strip invokes native window movement. The illustrated bezel, tube well, glass lip, and distorted image share one shader-derived curved edge so the physical frame follows the CRT geometry.
 
 Frotz save and restore access is restricted to:
 

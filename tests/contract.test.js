@@ -73,8 +73,10 @@ test("panel follows the Quattro lifecycle and keeps Frotz file access restricted
     "function close()",
     "FloatingWindow",
     'title: "Lantern — Interactive Fiction Terminal"',
-    "minimumSize: Qt.size(1020, 765)",
-    "maximumSize: Qt.size(1020, 765)",
+    "implicitWidth: Math.round(root.baseWindowWidth * root.windowScale)",
+    "implicitHeight: Math.round(root.baseWindowHeight * root.windowScale)",
+    "minimumSize: Qt.size(implicitWidth, implicitHeight)",
+    "maximumSize: Qt.size(implicitWidth, implicitHeight)",
     "DragHandler",
     "cursorShape: Qt.SizeAllCursor",
     "window.startSystemMove()",
@@ -92,14 +94,30 @@ test("panel follows the Quattro lifecycle and keeps Frotz file access restricted
     "onTapped: root.returnToMenu()",
     "property real crtRasterOpacity: 1.0",
     "function setCrtRasterOpacity(value)",
+    "property real windowScale: 1.0",
+    "function cycleWindowScale()",
+    "windowScale === 1.0 ? 1.25 : windowScale === 1.25 ? 1.5 : 1.0",
+    "scale: root.windowScale",
+    "screen.width * root.windowScale",
+    "id: scaleSelector",
+    'text: "SCALE"',
+    'text: "DISPLAY"',
+    "onTapped: root.cycleWindowScale()",
     'text: "BRIGHT  " + Math.round(root.crtRasterOpacity * 100)',
+    'text: "INTENSITY"',
+    "id: controlShelf",
+    'text: "LANTERN   MODEL ZM-80"',
     "root.adjustCrtRasterOpacity(event.angleDelta.y > 0 ? root.dialStep : -root.dialStep)",
     "property real effectStrength: root.crtEffects ? 1.0 : 0.0",
     "property real rasterOpacity: root.crtRasterOpacity",
     'themeColorsPath: homePath + "/.local/state/omarchy/current/theme/colors.toml"',
     "function loadThemePalette(raw)",
     "function cyclePhosphor()",
+    "function triggerChannelGlitch()",
+    "channelSwitchGlitch.restart()",
     'text: "COLOR  " + root.phosphorLabel',
+    'text: "PHOSPHOR"',
+    'text: frotzProc.running ? "SIGNAL" : "STANDBY"',
     'text: "CRT color: " + (root.phosphor === "theme" ? "Omarchy theme" : root.phosphor)',
     "onTapped: root.cyclePhosphor()",
     "onClosed:",
@@ -193,7 +211,7 @@ test("release bundles the Qt 6 CRT shader and an effects-off fallback", () => {
   const shaderSource = fs.readFileSync(path.join(root, "shaders/crt.frag"), "utf8")
   const shaderPack = fs.readFileSync(path.join(root, "shaders/crt.frag.qsb"))
 
-  assert.equal(manifest.version, "0.1.2")
+  assert.equal(manifest.version, "0.1.3")
   for (const required of [
     "property bool crtEffects: true",
     "payload.effects === true || payload.effects === false",
@@ -213,6 +231,7 @@ test("release bundles the Qt 6 CRT shader and an effects-off fallback", () => {
   for (const required of [
     "#version 440", "curvature", "scanline", "bloom", "vignette", "grain",
     "rasterOpacity", "rasterStrength", "rasterGain", "lineWeave", "scanDepth", "lineEnergy", "refreshBand", "refreshWake", "powerFlutter",
+    "channelGlitch", "channelGlitchSeed", "stackRow", "stackGate", "channelKick",
     "frameSurface", "tubeWell", "edgePixels", "frameOpening", "glassOpening", "frameRidge"
   ])
     assert.match(shaderSource, new RegExp(required))
@@ -226,8 +245,10 @@ test("panel serializes startup around one immutable checked story path", () => {
     "property string pendingStoryPath: \"\"",
     "if (frotzProc.running || startPending) return",
     "launchStory(bundledGames[menuIndex].path)",
-    "storyCheck.command = [\"test\", \"-r\", root.pendingStoryPath]",
+    "Model.bundledStoryPath(payload.story || \"\"",
+    "storyCheck.command = [\"test\", \"-f\", root.pendingStoryPath]",
     "root.pendingStoryPath"
   ]) assert.match(source, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
-  assert.doesNotMatch(source, /storyPath\s*=\s*requested/)
+  assert.doesNotMatch(source, /Model\.safeStoryPath|storyPath\s*=\s*requested/)
+  assert.doesNotMatch(source, /summon it with another absolute story path/)
 })

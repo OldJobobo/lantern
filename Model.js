@@ -41,11 +41,11 @@ function menuStep(index, count, direction) {
   return (current + delta + size) % size
 }
 
-function safeStoryPath(raw) {
+function bundledStoryPath(raw, allowedPaths) {
   var value = String(raw || "")
-  if (!value.startsWith("/") || /[\r\n\u0000]/.test(value)) return ""
-  if (!/\.(?:z[1-8]|zblorb|blorb)$/i.test(value)) return ""
-  return value
+  var allowed = Array.isArray(allowedPaths) ? allowedPaths : []
+  if (value === "" || /[\r\n\u0000]/.test(value)) return ""
+  return allowed.indexOf(value) === -1 ? "" : value
 }
 
 function tomlValue(raw) {
@@ -91,7 +91,7 @@ if (typeof module !== "undefined") {
     appendTranscript: appendTranscript,
     historyStep: historyStep,
     menuStep: menuStep,
-    safeStoryPath: safeStoryPath,
+    bundledStoryPath: bundledStoryPath,
     parseLanternConfig: parseLanternConfig
   }
 }

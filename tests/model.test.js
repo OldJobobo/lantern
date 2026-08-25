@@ -57,9 +57,15 @@ test("parseLanternConfig reads supported TOML scalar sections", () => {
   })
 })
 
-test("safeStoryPath accepts only absolute Z-machine story files", () => {
-  assert.equal(Model.safeStoryPath("/home/me/.local/share/lantern/games/zork1.z3"), "/home/me/.local/share/lantern/games/zork1.z3")
-  assert.equal(Model.safeStoryPath("relative/zork1.z3"), "")
-  assert.equal(Model.safeStoryPath("/tmp/not-a-story.txt"), "")
-  assert.equal(Model.safeStoryPath("/tmp/story.z3\n--evil"), "")
+test("bundledStoryPath accepts only an exact bundled cartridge path", () => {
+  const bundled = [
+    "/home/me/.config/omarchy/plugins/jobo.lantern/games/zork1.z3",
+    "/home/me/.config/omarchy/plugins/jobo.lantern/games/zork2.z3"
+  ]
+
+  assert.equal(Model.bundledStoryPath(bundled[0], bundled), bundled[0])
+  assert.equal(Model.bundledStoryPath("/tmp/attacker.z3", bundled), "")
+  assert.equal(Model.bundledStoryPath(`${bundled[0]}/../zork2.z3`, bundled), "")
+  assert.equal(Model.bundledStoryPath(`${bundled[0]}\n--evil`, bundled), "")
+  assert.equal(Model.bundledStoryPath(bundled[0], []), "")
 })
