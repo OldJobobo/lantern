@@ -312,16 +312,18 @@ Item {
     if (window && typeof window.setCommandDraft === "function") window.setCommandDraft(next.value)
   }
 
-  FileView {
-    id: bundledConfig
-    path: root.bundledConfigPath
-    watchChanges: true
-    printErrors: true
-    onLoaded: {
-      root.bundledConfigText = text()
-      root.applyConfigLayers()
+  Process {
+    id: bundledConfigReader
+    command: [root.boundedFileReader, root.bundledConfigPath]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var next = Model.boundedFileText(text, root.boundedFileBytes)
+        if (next === root.bundledConfigText) return
+        root.bundledConfigText = next
+        root.applyConfigLayers()
+      }
     }
-    onFileChanged: reload()
   }
 
   Process {
@@ -358,6 +360,7 @@ Item {
     running: true
     triggeredOnStart: true
     onTriggered: {
+      if (!bundledConfigReader.running) bundledConfigReader.running = true
       if (!userConfigReader.running) userConfigReader.running = true
       if (!themePaletteReader.running) themePaletteReader.running = true
     }

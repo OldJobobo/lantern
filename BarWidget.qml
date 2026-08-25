@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "Model.js" as Model
 
 // Static launcher only. The persistent panel remains the single owner of the
 // Frotz process and game session.
@@ -15,7 +16,12 @@ Panel {
   property bool storyActive: false
   property color themeYellow: "#e6c86e"
   property real glowLevel: 1.0
+  property string themeColorsText: ""
 
+  readonly property string pluginRoot: decodeURIComponent(String(Qt.resolvedUrl(".")))
+    .replace(/^file:\/\//, "").replace(/\/$/, "")
+  readonly property string boundedFileReader: pluginRoot + "/bin/read-bounded-file"
+  readonly property int boundedFileBytes: 65536
   readonly property string themeColorsPath:
     (Quickshell.env("HOME") || "/tmp") + "/.local/state/omarchy/current/theme/colors.toml"
 
@@ -95,22 +101,34 @@ Panel {
       repeat: true
       running: true
       triggeredOnStart: true
-      onTriggered: root.refreshStoryActivity()
+      onTriggered: {
+        root.refreshStoryActivity()
+        if (!paletteReader.running) paletteReader.running = true
+      }
     }
 
-    FileView {
-      id: paletteFile
-      path: root.themeColorsPath
-      watchChanges: true
-      printErrors: false
-      onLoaded: root.loadThemeYellow(text())
-      onFileChanged: reload()
+    Process {
+      id: paletteReader
+      command: [root.boundedFileReader, root.themeColorsPath]
+      stdout: StdioCollector {
+        waitForEnd: true
+        onStreamFinished: {
+          var next = Model.boundedFileText(text, root.boundedFileBytes)
+          if (next === root.themeColorsText) return
+          root.themeColorsText = next
+          root.loadThemeYellow(next)
+        }
+      }
     }
 
     Connections {
       target: Color
-      function onForegroundChanged() { paletteFile.reload() }
-      function onShellValuesChanged() { paletteFile.reload() }
+      function onForegroundChanged() {
+        if (!paletteReader.running) paletteReader.running = true
+      }
+      function onShellValuesChanged() {
+        if (!paletteReader.running) paletteReader.running = true
+      }
     }
 
     SequentialAnimation {

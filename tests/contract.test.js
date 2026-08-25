@@ -18,7 +18,7 @@ test("manifest declares a summonable third-party panel", () => {
   assert.equal(manifest.license, "MIT AND GPL-2.0-or-later")
 })
 
-test("release ships a watched Lantern TOML configuration", () => {
+test("release polls Lantern configuration through the bounded reader", () => {
   const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
   const config = fs.readFileSync(path.join(root, "lantern.toml"), "utf8")
 
@@ -27,15 +27,14 @@ test("release ships a watched Lantern TOML configuration", () => {
     'userConfigPath: configRoot + "/lantern/lantern.toml"',
     "Model.parseLanternConfig(raw)",
     "function applyConfigLayers()",
-    "watchChanges: true",
-    "onFileChanged: reload()",
     'boundedFileReader: pluginRoot + "/bin/read-bounded-file"',
     "Model.boundedFileText(text, root.boundedFileBytes)",
+    "command: [root.boundedFileReader, root.bundledConfigPath]",
     "command: [root.boundedFileReader, root.userConfigPath]",
     "command: [root.boundedFileReader, root.themeColorsPath]",
     "property real rasterGain: root.crtRasterGain"
   ]) assert.match(panel, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
-  assert.doesNotMatch(panel, /FileView\s*\{[^}]*path: root\.(?:userConfigPath|themeColorsPath)/s)
+  assert.doesNotMatch(panel, /FileView\s*\{/)
 
   for (const required of [
     "[display]", "phosphor", "effects", "raster_opacity", "raster_gain",
@@ -77,8 +76,12 @@ test("bar widget opens Lantern through the shell host with its bundled icon", ()
     "WidgetButton",
     'tooltipText: root.storyActive ? "Lantern · Story running" : "Lantern"',
     'Qt.resolvedUrl("assets/lantern.svg")',
-    'root.bar.run("omarchy-shell shell toggle jobo.lantern \'{}\'")'
+    'root.bar.run("omarchy-shell shell toggle jobo.lantern \'{}\'")',
+    'boundedFileReader: pluginRoot + "/bin/read-bounded-file"',
+    "Model.boundedFileText(text, root.boundedFileBytes)",
+    "command: [root.boundedFileReader, root.themeColorsPath]"
   ]) assert.match(source, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  assert.doesNotMatch(source, /FileView\s*\{/)
   assert.match(icon, /viewBox="0 0 24 24"/)
   assert.match(icon, /#ffffff/)
   assert.match(icon, /transform="translate\(0 1\)"/)
@@ -245,7 +248,7 @@ test("release bundles the Qt 6 CRT shader and an effects-off fallback", () => {
   const shaderSource = fs.readFileSync(path.join(root, "shaders/crt.frag"), "utf8")
   const shaderPack = fs.readFileSync(path.join(root, "shaders/crt.frag.qsb"))
 
-  assert.equal(manifest.version, "0.1.4")
+  assert.equal(manifest.version, "0.1.5")
   for (const required of [
     "property bool crtEffects: true",
     "payload.effects === true || payload.effects === false",
