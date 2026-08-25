@@ -56,7 +56,7 @@ cp "$config_root/omarchy/plugins/jobo.lantern/lantern.toml" \
   "$config_root/lantern/lantern.toml"
 ```
 
-LANTERN watches both files and reloads changes while the Omarchy shell is running. The personal file overrides the bundled defaults. Available settings cover phosphor color, CRT enablement, BRIGHT dial position and maximum gain, cursor fade timing, command-history and transcript limits, initially selected cartridge, and mouse-wheel dial step. Invalid numeric values are clamped to safe ranges.
+LANTERN watches both files and reloads changes while the Omarchy shell is running. The personal file overrides the bundled defaults. User configuration and theme files are read through a 64 KiB bounded native helper that atomically rejects symlinks, non-regular files, and blocking inputs. Available settings cover phosphor color, CRT enablement, BRIGHT dial position and maximum gain, cursor fade timing, command-history and transcript limits, initially selected cartridge, and mouse-wheel dial step. Invalid numeric values are clamped to safe ranges.
 
 ## Controls
 

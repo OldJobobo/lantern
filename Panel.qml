@@ -39,6 +39,7 @@ Item {
   property real windowScale: 1.0
   property string bundledConfigText: ""
   property string userConfigText: ""
+  property string themeColorsText: ""
   property var commandHistory: []
   property int historyIndex: 0
 
@@ -60,6 +61,8 @@ Item {
   readonly property string zork2StoryPath: pluginRoot + "/games/zork2.z3"
   readonly property string zork3StoryPath: pluginRoot + "/games/zork3.z3"
   readonly property string windowStateHelper: pluginRoot + "/bin/window-state"
+  readonly property string boundedFileReader: pluginRoot + "/bin/read-bounded-file"
+  readonly property int boundedFileBytes: 65536
   readonly property string saveRoot: stateRoot + "/lantern/saves"
   readonly property var bundledGames: [{
     id: "zork1",
@@ -321,35 +324,53 @@ Item {
     onFileChanged: reload()
   }
 
-  FileView {
-    id: userConfig
-    path: root.userConfigPath
-    watchChanges: true
-    printErrors: false
-    onLoaded: {
-      root.userConfigText = text()
-      root.applyConfigLayers()
+  Process {
+    id: userConfigReader
+    command: [root.boundedFileReader, root.userConfigPath]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var next = Model.boundedFileText(text, root.boundedFileBytes)
+        if (next === root.userConfigText) return
+        root.userConfigText = next
+        root.applyConfigLayers()
+      }
     }
-    onLoadFailed: {
-      root.userConfigText = ""
-      root.applyConfigLayers()
-    }
-    onFileChanged: reload()
   }
 
-  FileView {
-    id: themePalette
-    path: root.themeColorsPath
-    watchChanges: true
-    printErrors: false
-    onLoaded: root.loadThemePalette(text())
-    onFileChanged: reload()
+  Process {
+    id: themePaletteReader
+    command: [root.boundedFileReader, root.themeColorsPath]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var next = Model.boundedFileText(text, root.boundedFileBytes)
+        if (next === root.themeColorsText) return
+        root.themeColorsText = next
+        root.loadThemePalette(next)
+      }
+    }
+  }
+
+  Timer {
+    interval: 2000
+    repeat: true
+    running: true
+    triggeredOnStart: true
+    onTriggered: {
+      if (!userConfigReader.running) userConfigReader.running = true
+      if (!themePaletteReader.running) themePaletteReader.running = true
+    }
   }
 
   Connections {
     target: Color
-    function onForegroundChanged() { themePalette.reload() }
-    function onShellValuesChanged() { themePalette.reload() }
+    function onForegroundChanged() {
+      if (!themePaletteReader.running) themePaletteReader.running = true
+    }
+    function onShellValuesChanged() {
+      if (!themePaletteReader.running) themePaletteReader.running = true
+    }
   }
 
   Timer {

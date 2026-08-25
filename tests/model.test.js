@@ -69,3 +69,9 @@ test("bundledStoryPath accepts only an exact bundled cartridge path", () => {
   assert.equal(Model.bundledStoryPath(`${bundled[0]}\n--evil`, bundled), "")
   assert.equal(Model.bundledStoryPath(bundled[0], []), "")
 })
+
+test("boundedFileText rejects reader output above the byte cap", () => {
+  assert.equal(Model.boundedFileText("phosphor = \"green\"", 64), "phosphor = \"green\"")
+  assert.equal(Model.boundedFileText("x".repeat(65), 64), "")
+  assert.equal(Model.boundedFileText("anything", 0), "")
+})

@@ -48,6 +48,12 @@ function bundledStoryPath(raw, allowedPaths) {
   return allowed.indexOf(value) === -1 ? "" : value
 }
 
+function boundedFileText(raw, maxBytes) {
+  var value = String(raw || "")
+  var limit = Math.max(0, Number(maxBytes) || 0)
+  return value.length <= limit ? value : ""
+}
+
 function tomlValue(raw) {
   var value = String(raw || "").trim()
   if (/^"(?:[^"\\]|\\.)*"$/.test(value)) {
@@ -92,6 +98,7 @@ if (typeof module !== "undefined") {
     historyStep: historyStep,
     menuStep: menuStep,
     bundledStoryPath: bundledStoryPath,
+    boundedFileText: boundedFileText,
     parseLanternConfig: parseLanternConfig
   }
 }

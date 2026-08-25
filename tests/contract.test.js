@@ -3,6 +3,7 @@ const assert = require("node:assert/strict")
 const fs = require("node:fs")
 const path = require("node:path")
 const crypto = require("node:crypto")
+const { spawnSync } = require("node:child_process")
 
 const root = path.resolve(__dirname, "..")
 
@@ -28,14 +29,44 @@ test("release ships a watched Lantern TOML configuration", () => {
     "function applyConfigLayers()",
     "watchChanges: true",
     "onFileChanged: reload()",
+    'boundedFileReader: pluginRoot + "/bin/read-bounded-file"',
+    "Model.boundedFileText(text, root.boundedFileBytes)",
+    "command: [root.boundedFileReader, root.userConfigPath]",
+    "command: [root.boundedFileReader, root.themeColorsPath]",
     "property real rasterGain: root.crtRasterGain"
   ]) assert.match(panel, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  assert.doesNotMatch(panel, /FileView\s*\{[^}]*path: root\.(?:userConfigPath|themeColorsPath)/s)
 
   for (const required of [
     "[display]", "phosphor", "effects", "raster_opacity", "raster_gain",
     "cursor_fade_ms", "[terminal]", "history_limit", "transcript_line_limit",
     "[launcher]", "default_cartridge", "[controls]", "dial_step"
   ]) assert.match(config, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+})
+
+test("bounded file reader rejects symlinks, special files, and oversized input", () => {
+  const reader = path.join(root, "bin/read-bounded-file")
+  const fixtureRoot = fs.mkdtempSync(path.join(root, ".test-bounded-reader-"))
+
+  try {
+    const regular = path.join(fixtureRoot, "regular.toml")
+    const oversized = path.join(fixtureRoot, "oversized.toml")
+    const symlink = path.join(fixtureRoot, "linked.toml")
+    const fifo = path.join(fixtureRoot, "config.fifo")
+    fs.writeFileSync(regular, "[display]\nphosphor = \"green\"\n")
+    fs.writeFileSync(oversized, "x".repeat(65537))
+    fs.symlinkSync(regular, symlink)
+    assert.equal(spawnSync("mkfifo", [fifo]).status, 0)
+
+    assert.equal(spawnSync(reader, [regular], { encoding: "utf8" }).stdout, fs.readFileSync(regular, "utf8"))
+    assert.equal(spawnSync(reader, [oversized], { encoding: "utf8" }).stdout, "")
+    assert.equal(spawnSync(reader, [symlink], { encoding: "utf8" }).stdout, "")
+    const fifoRead = spawnSync(reader, [fifo], { encoding: "utf8", timeout: 1500 })
+    assert.equal(fifoRead.error, undefined)
+    assert.equal(fifoRead.stdout, "")
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true })
+  }
 })
 
 test("bar widget opens Lantern through the shell host with its bundled icon", () => {
@@ -154,6 +185,8 @@ test("release contains a self-contained x86-64 runtime and Zork trilogy", () => 
     path.join(root, "third_party/frotz/COPYING"),
     path.join(root, "third_party/frotz/BUILD.md"),
     path.join(root, "third_party/frotz/source/frotz-2.55.tar.gz"),
+    path.join(root, "bin/read-bounded-file"),
+    path.join(root, "bin/read-bounded-file.c"),
     path.join(root, "third_party/zork1/LICENSE"),
     path.join(root, "third_party/zork2/LICENSE"),
     path.join(root, "third_party/zork3/LICENSE"),
@@ -162,6 +195,7 @@ test("release contains a self-contained x86-64 runtime and Zork trilogy", () => 
 
   assert.equal(fs.statSync(runtime).mode & 0o111, 0o111, "bundled dfrotz must be executable")
   assert.equal(fs.statSync(windowStateHelper).mode & 0o111, 0o111, "window state helper must be executable")
+  assert.equal(fs.statSync(path.join(root, "bin/read-bounded-file")).mode & 0o111, 0o111, "bounded reader must be executable")
   assert.deepEqual([...fs.readFileSync(runtime).subarray(0, 5)], [0x7f, 0x45, 0x4c, 0x46, 0x02])
   for (const story of stories)
     assert.equal(fs.readFileSync(story)[0], 3, `${path.basename(story)} must be a V3 story`)
@@ -211,7 +245,7 @@ test("release bundles the Qt 6 CRT shader and an effects-off fallback", () => {
   const shaderSource = fs.readFileSync(path.join(root, "shaders/crt.frag"), "utf8")
   const shaderPack = fs.readFileSync(path.join(root, "shaders/crt.frag.qsb"))
 
-  assert.equal(manifest.version, "0.1.3")
+  assert.equal(manifest.version, "0.1.4")
   for (const required of [
     "property bool crtEffects: true",
     "payload.effects === true || payload.effects === false",
