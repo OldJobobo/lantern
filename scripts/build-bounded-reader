@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+output="${1:-$root/bin/read-bounded-file}"
+image="gcc:14.2.0-bookworm@sha256:82549aa8f90ada3236a8be70c74543132a76662ef33f0c3271ed802b81584a82"
+
+mkdir -p "$(dirname "$output")"
+output_dir="$(cd "$(dirname "$output")" && pwd)"
+output_name="$(basename "$output")"
+temporary_name=".${output_name}.tmp.$$"
+trap 'rm -f "$output_dir/$temporary_name"' EXIT
+
+docker run --rm --platform linux/amd64 \
+  --user "$(id -u):$(id -g)" \
+  --volume "$root:/src:ro" \
+  --volume "$output_dir:/out" \
+  --workdir /src \
+  --env SOURCE_DATE_EPOCH=0 \
+  "$image" \
+  gcc -std=c11 -O2 -Wall -Wextra -Werror \
+    -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fPIE -pie \
+    -Wl,--build-id=none,-z,relro,-z,now -s \
+    -o "/out/$temporary_name" bin/read-bounded-file.c
+
+chmod 0755 "$output_dir/$temporary_name"
+mv -f "$output_dir/$temporary_name" "$output_dir/$output_name"

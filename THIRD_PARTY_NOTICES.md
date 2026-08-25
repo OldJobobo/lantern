@@ -1,6 +1,6 @@
 # Third-party notices
 
-LANTERN's original QML and JavaScript are licensed under the repository-level MIT license. The bundled interpreter and story retain their own licenses.
+All original LANTERN code and materials—including QML, JavaScript, C source, shell scripts, tests, and documentation—are licensed under the repository-level MIT license. The bundled interpreter and stories retain their own licenses.
 
 ## Frotz 2.55 (`dfrotz`)
 

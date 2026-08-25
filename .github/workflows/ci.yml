@@ -26,8 +26,10 @@ jobs:
           /usr/lib/qt6/bin/qsb --dump "$RUNNER_TEMP/crt.frag.qsb" >/dev/null
       - name: Verify bundled artifacts
         run: sha256sum -c third_party/SHA256SUMS
-      - name: Build bounded reader source
-        run: cc -std=c11 -O2 -Wall -Wextra -Werror -o "$RUNNER_TEMP/read-bounded-file" bin/read-bounded-file.c
+      - name: Rebuild and verify exact bounded reader
+        run: |
+          ./scripts/build-bounded-reader "$RUNNER_TEMP/read-bounded-file"
+          cmp --silent bin/read-bounded-file "$RUNNER_TEMP/read-bounded-file"
       - name: Build corresponding Frotz source
         run: |
           mkdir -p /tmp/lantern-frotz-source

@@ -12,7 +12,7 @@ It is deliberately small: the bundled Frotz interpreter runs the game; LANTERN s
 omarchy plugin add https://github.com/OldJobobo/lantern.git --enable
 ```
 
-That is the complete installation. LANTERN includes its own `dfrotz` runtime and MIT-licensed copies of the complete Zork trilogy. It does not run an installer, use sudo, download assets on first launch, or require a separate package.
+That is the complete installation. LANTERN includes its own `dfrotz` runtime and MIT-licensed copies of the complete Zork trilogy. It runs no installer, requests no elevated privileges, downloads no assets on first launch, and requires no separate package.
 
 To uninstall the plugin safely:
 
@@ -103,12 +103,16 @@ LANTERN includes:
 
 See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), the complete corresponding Frotz source under `third_party/frotz/source/`, and the checksum inventory at `third_party/SHA256SUMS`.
 
-The repository-level MIT license applies only to LANTERN's original QML, JavaScript, tests, and documentation. It does not relicense bundled third-party components.
+The original bounded-reader helper has [documented build provenance](docs/read-bounded-file-provenance.md). Its executable is reproducibly built with a digest-pinned GCC container, checksummed alongside its reviewed C source, and rebuilt byte-for-byte in CI.
+
+The repository-level MIT license applies to all original LANTERN code and materials, including its QML, JavaScript, C source, shell scripts, tests, and documentation. It does not relicense bundled third-party components.
 
 ## Validation
 
 ```bash
 ./tests/run
+./scripts/build-bounded-reader /tmp/read-bounded-file
+cmp bin/read-bounded-file /tmp/read-bounded-file
 sha256sum -c third_party/SHA256SUMS
 ./tests/smoke-runtime
 omarchy plugin validate .

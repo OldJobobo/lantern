@@ -49,23 +49,42 @@ test("bounded file reader rejects symlinks, special files, and oversized input",
 
   try {
     const regular = path.join(fixtureRoot, "regular.toml")
+    const maximum = path.join(fixtureRoot, "maximum.toml")
     const oversized = path.join(fixtureRoot, "oversized.toml")
     const symlink = path.join(fixtureRoot, "linked.toml")
     const fifo = path.join(fixtureRoot, "config.fifo")
     fs.writeFileSync(regular, "[display]\nphosphor = \"green\"\n")
+    fs.writeFileSync(maximum, "x".repeat(65536))
     fs.writeFileSync(oversized, "x".repeat(65537))
     fs.symlinkSync(regular, symlink)
     assert.equal(spawnSync("mkfifo", [fifo]).status, 0)
 
     assert.equal(spawnSync(reader, [regular], { encoding: "utf8" }).stdout, fs.readFileSync(regular, "utf8"))
+    assert.equal(spawnSync(reader, [maximum], { encoding: "utf8" }).stdout.length, 65536)
     assert.equal(spawnSync(reader, [oversized], { encoding: "utf8" }).stdout, "")
     assert.equal(spawnSync(reader, [symlink], { encoding: "utf8" }).stdout, "")
+    assert.equal(spawnSync(reader, [fixtureRoot], { encoding: "utf8" }).stdout, "")
     const fifoRead = spawnSync(reader, [fifo], { encoding: "utf8", timeout: 1500 })
     assert.equal(fifoRead.error, undefined)
     assert.equal(fifoRead.stdout, "")
   } finally {
     fs.rmSync(fixtureRoot, { recursive: true, force: true })
   }
+})
+
+test("bounded reader executable is rebuilt reproducibly in CI", () => {
+  const build = fs.readFileSync(path.join(root, "scripts/build-bounded-reader"), "utf8")
+  const workflow = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8")
+  const provenance = fs.readFileSync(path.join(root, "docs/read-bounded-file-provenance.md"), "utf8")
+  const digest = "sha256:82549aa8f90ada3236a8be70c74543132a76662ef33f0c3271ed802b81584a82"
+
+  assert.match(build, new RegExp(digest))
+  assert.match(build, /--platform linux\/amd64/)
+  assert.match(build, /SOURCE_DATE_EPOCH=0/)
+  assert.match(build, /--build-id=none/)
+  assert.match(workflow, /\.\/scripts\/build-bounded-reader "\$RUNNER_TEMP\/read-bounded-file"/)
+  assert.match(workflow, /cmp --silent bin\/read-bounded-file "\$RUNNER_TEMP\/read-bounded-file"/)
+  assert.match(provenance, new RegExp(digest))
 })
 
 test("bar widget opens Lantern through the shell host with its bundled icon", () => {
@@ -224,6 +243,8 @@ test("release contains a self-contained x86-64 runtime and Zork trilogy", () => 
     path.join(root, "third_party/frotz/source/frotz-2.55.tar.gz"),
     path.join(root, "bin/read-bounded-file"),
     path.join(root, "bin/read-bounded-file.c"),
+    path.join(root, "scripts/build-bounded-reader"),
+    path.join(root, "docs/read-bounded-file-provenance.md"),
     path.join(root, "third_party/zork1/LICENSE"),
     path.join(root, "third_party/zork2/LICENSE"),
     path.join(root, "third_party/zork3/LICENSE"),
@@ -254,6 +275,8 @@ test("third-party checksum inventory covers every distributed upstream artifact"
 
   for (const relative of [
     "runtime/x86_64-linux/dfrotz",
+    "bin/read-bounded-file",
+    "bin/read-bounded-file.c",
     "games/zork1.z3",
     "games/zork2.z3",
     "games/zork3.z3",
@@ -282,7 +305,7 @@ test("release bundles the Qt 6 CRT shader and an effects-off fallback", () => {
   const shaderSource = fs.readFileSync(path.join(root, "shaders/crt.frag"), "utf8")
   const shaderPack = fs.readFileSync(path.join(root, "shaders/crt.frag.qsb"))
 
-  assert.equal(manifest.version, "0.1.6")
+  assert.equal(manifest.version, "0.1.7")
   for (const required of [
     "property bool crtEffects: true",
     "payload.effects === true || payload.effects === false",

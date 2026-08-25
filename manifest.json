@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "jobo.lantern",
   "name": "Lantern",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "author": "OldJobobo",
   "license": "MIT AND GPL-2.0-or-later",
   "description": "Play Z-machine interactive fiction in an early-1980s monochrome CRT panel.",
