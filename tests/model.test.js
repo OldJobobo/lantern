@@ -19,6 +19,23 @@ test("cleanOutput removes a prompt fused to a dumb-Frotz status line", () => {
   )
 })
 
+test("cleanOutput hides interpreter filename prompts without losing game output", () => {
+  assert.equal(
+    Model.cleanOutput(">Please enter a filename [zork1.qzl]:  West of House  Score: 0  Moves: 0\n\nOk."),
+    "West of House  Score: 0  Moves: 0\n\nOk."
+  )
+  assert.equal(
+    Model.cleanOutput("Please enter a filename [slot.qzl]: Overwrite existing file?  Forest\n\nOk."),
+    "Forest\n\nOk."
+  )
+})
+
+test("normalizeSaveName creates a bounded save-root filename stem", () => {
+  assert.equal(Model.normalizeSaveName("  Zork I / west.qzl\n"), "Zork I west")
+  assert.equal(Model.normalizeSaveName("../escape"), "escape")
+  assert.equal(Model.normalizeSaveName("x".repeat(80)).length, 20)
+})
+
 test("appendTranscript bounds retained lines and preserves newest prose", () => {
   const result = Model.appendTranscript("one\ntwo", "three\nfour", 3)
   assert.equal(result, "two\nthree\nfour")

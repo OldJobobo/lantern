@@ -69,6 +69,8 @@ LANTERN polls both files and reloads changes while the Omarchy shell is running.
 - **Launcher Enter or 1–3:** boot the selected story
 - **Game Enter:** submit command
 - **Game Up/Down:** command history
+- **SAVE button, Ctrl+S, or `SAVE [name]`:** open the Memory Bank and write a named save
+- **LOAD button, Ctrl+L, `RESTORE [name]`, or `LOAD [name]`:** select and restore a saved game
 - **Game MENU button or Ctrl+M:** end the current story process and return to the cartridge launcher
 - **Escape:** hide LANTERN while leaving the game process alive
 
@@ -78,7 +80,9 @@ LANTERN remembers the window's monitor and monitor-relative position when it clo
 
 The terminal uses a 1020×765 logical-pixel base calibrated for Frotz's 76-column output. Its SCALE button enlarges that complete surface to 1.25× or 1.5× without changing the rest of the Omarchy shell. Transcript lines never soft-wrap and sit inside a curvature-safe inset so the illustrated tube edge cannot obscure them. The top label strip invokes native window movement. The illustrated bezel, tube well, glass lip, and distorted image share one shader-derived curved edge so the physical frame follows the CRT geometry.
 
-Frotz save and restore access is restricted to:
+The in-screen **Memory Bank** handles Frotz's filename protocol before sending commands to the interpreter, so prompts without trailing newlines cannot disappear. New saves receive a story-and-timestamp suggestion, names are constrained to safe filename stems, existing saves require overwrite confirmation, and restore presents readable `.qzl` files newest-first. Escape cancels before any interpreter command is sent. Raw Z-machine `SAVE` and `RESTORE` commands are intercepted into the same flow; `LOAD` is accepted as a modern alias for `RESTORE`.
+
+Frotz save and restore access remains restricted to:
 
 ```text
 ${XDG_STATE_HOME:-~/.local/state}/lantern/saves

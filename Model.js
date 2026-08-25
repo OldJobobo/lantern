@@ -7,6 +7,8 @@ function cleanOutput(raw) {
     .replace(/\x1b\[[0-?]*[ -\/]*[@-~]/g, "")
     .replace(/\r\n?/g, "\n")
     .replace(/\u0000/g, "")
+    .replace(/>?Please enter a filename \[[^\]\n]*\]:[ \t]*/g, "")
+    .replace(/Overwrite existing file\?[ \t]*/g, "")
   var lines = text.split("\n")
   for (var i = 0; i < lines.length; i++) {
     if (lines[i].indexOf("> ") === 0 && lines[i].indexOf("Score:") !== -1 && lines[i].indexOf("Moves:") !== -1)
@@ -15,6 +17,16 @@ function cleanOutput(raw) {
   text = lines.join("\n")
   text = text.replace(/(?:^|\n)>\s*$/g, "")
   return text.replace(/[ \t]+$/gm, "").trim()
+}
+
+function normalizeSaveName(raw) {
+  return String(raw || "")
+    .replace(/[\r\n\u0000]/g, " ")
+    .replace(/\.qzl\s*$/i, "")
+    .replace(/[^A-Za-z0-9 _-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 20)
 }
 
 function appendTranscript(current, addition, maxLines) {
@@ -93,6 +105,7 @@ function parseLanternConfig(raw) {
 if (typeof module !== "undefined") {
   module.exports = {
     normalizeCommand: normalizeCommand,
+    normalizeSaveName: normalizeSaveName,
     cleanOutput: cleanOutput,
     appendTranscript: appendTranscript,
     historyStep: historyStep,

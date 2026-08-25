@@ -123,9 +123,9 @@ test("panel follows the Quattro lifecycle and keeps Frotz file access restricted
     "property bool returningToMenu: false",
     "function returnToMenu()",
     "if (frotzProc.running) frotzProc.running = false",
-    'text: "MENU  ^M"',
+    '{ label: "MENU  ^M", action: "menu" }',
     "event.key === Qt.Key_M",
-    "onTapped: root.returnToMenu()",
+    "else root.returnToMenu()",
     "property real crtRasterOpacity: 1.0",
     "function setCrtRasterOpacity(value)",
     "property real windowScale: 1.0",
@@ -161,6 +161,10 @@ test("panel follows the Quattro lifecycle and keeps Frotz file access restricted
     "windowLoader.active = false",
     'windowStateHelper: pluginRoot + "/bin/window-state"',
     'command: [root.windowStateHelper, "save"]',
+    "function checkpointWindowPosition()",
+    "id: windowStateCheckpointTimer",
+    "id: windowStateCheckpoint",
+    "else root.checkpointWindowPosition()",
     'command: [root.windowStateHelper, "prepare"]',
     'command: [root.windowStateHelper, "clear"]',
     "anchors.leftMargin: 52",
@@ -172,6 +176,36 @@ test("panel follows the Quattro lifecycle and keeps Frotz file access restricted
   ]) assert.match(source, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
   assert.doesNotMatch(source, /PanelWindow/)
   assert.doesNotMatch(source, /WlrLayershell|WlrKeyboardFocus|ExclusionMode/)
+})
+
+test("panel provides first-class Z-machine save and restore controls", () => {
+  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+  const overlay = fs.readFileSync(path.join(root, "SaveLoadOverlay.qml"), "utf8")
+
+  for (const required of [
+    'import Qt.labs.folderlistmodel',
+    'nameFilters: ["*.qzl"]',
+    'function beginSave(recorded, requestedName)',
+    'function beginLoad(recorded, requestedName)',
+    'function completeSave(raw, overwriteConfirmed)',
+    'function completeLoad(raw)',
+    'command.match(/^(save|restore|load)',
+    'frotzProc.write("save\\n" + stem + "\\n"',
+    'frotzProc.write("restore\\n" + existing + "\\n")',
+    '{ label: "SAVE  ^S", action: "save" }',
+    '{ label: "LOAD  ^L", action: "load" }',
+    'event.key === Qt.Key_S',
+    'event.key === Qt.Key_L',
+    'SaveLoadOverlay'
+  ]) assert.ok(panel.includes(required), `missing save/load contract: ${required}`)
+
+  for (const required of [
+    'MEMORY BANK  //  SAVE GAME',
+    'MEMORY BANK  //  RESTORE GAME',
+    'ENTER  WRITE SAVE',
+    'ENTER  RESTORE',
+    'onDoubleTapped: controller.completeLoad(parent.fileName)'
+  ]) assert.ok(overlay.includes(required), `missing save/load overlay contract: ${required}`)
 })
 
 test("release contains a self-contained x86-64 runtime and Zork trilogy", () => {
@@ -248,7 +282,7 @@ test("release bundles the Qt 6 CRT shader and an effects-off fallback", () => {
   const shaderSource = fs.readFileSync(path.join(root, "shaders/crt.frag"), "utf8")
   const shaderPack = fs.readFileSync(path.join(root, "shaders/crt.frag.qsb"))
 
-  assert.equal(manifest.version, "0.1.5")
+  assert.equal(manifest.version, "0.1.6")
   for (const required of [
     "property bool crtEffects: true",
     "payload.effects === true || payload.effects === false",

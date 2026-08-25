@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import Qt.labs.folderlistmodel
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -42,6 +43,12 @@ Item {
   property string themeColorsText: ""
   property var commandHistory: []
   property int historyIndex: 0
+  property string fileActionMode: ""
+  property bool fileActionCommandRecorded: false
+  property string saveDraft: ""
+  property bool saveOverwritePending: false
+  property int loadSaveIndex: 0
+  property string fileActionMessage: ""
 
   readonly property var window: windowLoader.item
   readonly property int baseWindowWidth: 1020
@@ -125,7 +132,12 @@ Item {
 
   function cycleWindowScale() {
     windowScale = windowScale === 1.0 ? 1.25 : windowScale === 1.25 ? 1.5 : 1.0
+    windowStateCheckpointTimer.restart()
     Qt.callLater(function() { root.focusCurrentView() })
+  }
+
+  function checkpointWindowPosition() {
+    if (window && window.visible) windowStateCheckpointTimer.restart()
   }
 
   function configNumber(value, fallback, minimum, maximum) {
@@ -208,6 +220,10 @@ Item {
     transcript = ""
     commandHistory = []
     historyIndex = 0
+    fileActionMode = ""
+    fileActionCommandRecorded = false
+    saveOverwritePending = false
+    fileActionMessage = ""
     if (window && typeof window.clearCommandInput === "function") window.clearCommandInput()
     viewMode = "menu"
     statusText = "SELECT STORY"
@@ -233,6 +249,10 @@ Item {
     transcript = ""
     commandHistory = []
     historyIndex = 0
+    fileActionMode = ""
+    fileActionCommandRecorded = false
+    saveOverwritePending = false
+    fileActionMessage = ""
     viewMode = "game"
     statusText = "WARMING UP"
     startPending = true
@@ -290,10 +310,7 @@ Item {
       window.scrollTranscriptToBottom()
   }
 
-  function submitCommand(raw) {
-    var command = Model.normalizeCommand(raw)
-    if (command === "" || !frotzProc.running) return
-
+  function rememberCommand(command) {
     transcript = Model.appendTranscript(transcript, "\n> " + command, transcriptLineLimit)
     var nextHistory = commandHistory.slice(0)
     if (nextHistory.length === 0 || nextHistory[nextHistory.length - 1] !== command)
@@ -302,14 +319,151 @@ Item {
     commandHistory = nextHistory
     historyIndex = commandHistory.length
     if (window && typeof window.clearCommandInput === "function") window.clearCommandInput()
-    frotzProc.write(command + "\n")
     Qt.callLater(scrollToBottom)
+  }
+
+  function currentStoryId() {
+    for (var i = 0; i < bundledGames.length; i++)
+      if (bundledGames[i].path === storyPath) return bundledGames[i].id
+    return "story"
+  }
+
+  function defaultSaveName() {
+    return currentStoryId() + "-" + Qt.formatDateTime(new Date(), "MMdd-HHmmss")
+  }
+
+  function matchingSaveFileName(raw) {
+    var stem = Model.normalizeSaveName(raw)
+    if (stem === "") return ""
+    var target = (stem + ".qzl").toLowerCase()
+    for (var i = 0; i < saveFiles.count; i++) {
+      var fileName = String(saveFiles.get(i, "fileName") || "")
+      if (fileName.toLowerCase() === target) return fileName
+    }
+    return ""
+  }
+
+  function closeFileAction(cancelled) {
+    if (cancelled && fileActionCommandRecorded)
+      transcript = Model.appendTranscript(transcript, "[FILE OPERATION CANCELLED]", transcriptLineLimit)
+    fileActionMode = ""
+    fileActionCommandRecorded = false
+    saveOverwritePending = false
+    fileActionMessage = ""
+    Qt.callLater(function() { root.focusCurrentView() })
+  }
+
+  function beginSave(recorded, requestedName) {
+    if (!frotzProc.running) return
+    fileActionMode = "save"
+    fileActionCommandRecorded = recorded === true
+    saveOverwritePending = false
+    fileActionMessage = ""
+    saveDraft = Model.normalizeSaveName(requestedName) || defaultSaveName()
+    Qt.callLater(function() { root.focusCurrentView() })
+    if (requestedName) completeSave(saveDraft, false)
+  }
+
+  function completeSave(raw, overwriteConfirmed) {
+    if (fileActionMode !== "save") return
+    var stem = Model.normalizeSaveName(raw)
+    if (stem === "") {
+      fileActionMessage = "ENTER A NAME FOR THIS SAVE"
+      return
+    }
+
+    var existing = matchingSaveFileName(stem)
+    if (existing !== "" && !overwriteConfirmed) {
+      saveDraft = existing.replace(/\.qzl$/i, "")
+      saveOverwritePending = true
+      fileActionMessage = "SAVE EXISTS — ENTER TO OVERWRITE"
+      Qt.callLater(function() { root.focusCurrentView() })
+      return
+    }
+
+    if (!fileActionCommandRecorded) rememberCommand("SAVE")
+    var fileName = existing !== "" ? existing : stem + ".qzl"
+    transcript = Model.appendTranscript(transcript, "[SAVING  " + fileName + "]", transcriptLineLimit)
+    closeFileAction(false)
+    frotzProc.write("save\n" + stem + "\n" + (existing !== "" ? "y\n" : ""))
+  }
+
+  function beginLoad(recorded, requestedName) {
+    if (!frotzProc.running) return
+    fileActionMode = "load"
+    fileActionCommandRecorded = recorded === true
+    fileActionMessage = ""
+    loadSaveIndex = Math.max(0, Math.min(loadSaveIndex, saveFiles.count - 1))
+
+    if (requestedName) {
+      var existing = matchingSaveFileName(requestedName)
+      if (existing !== "") {
+        completeLoad(existing)
+        return
+      }
+      fileActionMessage = "SAVE NOT FOUND — SELECT AN AVAILABLE FILE"
+    } else if (saveFiles.count === 0) {
+      fileActionMessage = "NO SAVED GAMES YET"
+    }
+    Qt.callLater(function() { root.focusCurrentView() })
+  }
+
+  function moveLoadSelection(direction) {
+    if (saveFiles.count === 0) return
+    loadSaveIndex = Model.menuStep(loadSaveIndex, saveFiles.count, direction)
+  }
+
+  function completeSelectedLoad() {
+    if (saveFiles.count === 0) return
+    completeLoad(String(saveFiles.get(loadSaveIndex, "fileName") || ""))
+  }
+
+  function completeLoad(raw) {
+    if (fileActionMode !== "load") return
+    var existing = matchingSaveFileName(String(raw || "").replace(/\.qzl$/i, ""))
+    if (existing === "") {
+      fileActionMessage = "SAVE FILE IS NO LONGER AVAILABLE"
+      return
+    }
+    if (!fileActionCommandRecorded) rememberCommand("RESTORE")
+    transcript = Model.appendTranscript(transcript, "[LOADING  " + existing + "]", transcriptLineLimit)
+    closeFileAction(false)
+    frotzProc.write("restore\n" + existing + "\n")
+  }
+
+  function submitCommand(raw) {
+    var command = Model.normalizeCommand(raw)
+    if (command === "" || !frotzProc.running || fileActionMode !== "") return
+
+    var fileCommand = command.match(/^(save|restore|load)(?:\s+(.+))?$/i)
+    if (fileCommand) {
+      rememberCommand(command)
+      if (fileCommand[1].toLowerCase() === "save") beginSave(true, fileCommand[2] || "")
+      else beginLoad(true, fileCommand[2] || "")
+      return
+    }
+
+    rememberCommand(command)
+    frotzProc.write(command + "\n")
   }
 
   function stepHistory(direction) {
     var next = Model.historyStep(commandHistory, historyIndex, direction)
     historyIndex = next.index
     if (window && typeof window.setCommandDraft === "function") window.setCommandDraft(next.value)
+  }
+
+  FolderListModel {
+    id: saveFiles
+    folder: "file://" + root.saveRoot
+    nameFilters: ["*.qzl"]
+    sortField: FolderListModel.Time
+    sortReversed: false
+    showFiles: true
+    showDirs: false
+    showDotAndDotDot: false
+    showHidden: false
+    showOnlyReadable: true
   }
 
   Process {
@@ -428,6 +582,18 @@ Item {
     interval: 250
     repeat: false
     onTriggered: if (!windowStateClear.running) windowStateClear.running = true
+  }
+
+  Timer {
+    id: windowStateCheckpointTimer
+    interval: 150
+    repeat: false
+    onTriggered: if (window && window.visible && !windowStateCheckpoint.running) windowStateCheckpoint.running = true
+  }
+
+  Process {
+    id: windowStateCheckpoint
+    command: [root.windowStateHelper, "save"]
   }
 
   Process {
@@ -549,6 +715,7 @@ Item {
 
     function focusCurrentView() {
       if (root.viewMode === "menu") launcherScreen.forceActiveFocus()
+      else if (root.fileActionMode !== "") saveLoadOverlay.focusCurrent()
       else commandInput.forceActiveFocus()
     }
 
@@ -644,7 +811,10 @@ Item {
           DragHandler {
             target: null
             acceptedButtons: Qt.LeftButton
-            onActiveChanged: if (active) window.startSystemMove()
+            onActiveChanged: {
+              if (active) window.startSystemMove()
+              else root.checkpointWindowPosition()
+            }
           }
         }
 
@@ -743,7 +913,7 @@ Item {
 
               TextInput {
                 id: commandInput
-                width: Math.max(80, parent.width - promptText.implicitWidth - menuButton.width - parent.spacing * 2)
+                width: Math.max(80, parent.width - promptText.implicitWidth - actionButtons.width - parent.spacing * 2)
                 color: root.phosphorColor
                 selectionColor: root.phosphorDim
                 selectedTextColor: "#080a07"
@@ -751,17 +921,19 @@ Item {
                 font.pixelSize: 18
                 font.letterSpacing: 0.3
                 activeFocusOnTab: true
-                enabled: frotzProc.running
+                enabled: frotzProc.running && root.fileActionMode === ""
                 clip: true
                 onAccepted: root.submitCommand(commandInput.text)
                 Keys.onEscapePressed: function(event) { root.requestClose(); event.accepted = true }
                 Keys.onUpPressed: function(event) { root.stepHistory(-1); event.accepted = true }
                 Keys.onDownPressed: function(event) { root.stepHistory(1); event.accepted = true }
                 Keys.onPressed: function(event) {
-                  if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_M) {
-                    root.returnToMenu()
-                    event.accepted = true
-                  }
+                  if (!(event.modifiers & Qt.ControlModifier)) return
+                  if (event.key === Qt.Key_S) root.beginSave(false, "")
+                  else if (event.key === Qt.Key_L) root.beginLoad(false, "")
+                  else if (event.key === Qt.Key_M) root.returnToMenu()
+                  else return
+                  event.accepted = true
                 }
 
                 cursorDelegate: Rectangle {
@@ -779,37 +951,61 @@ Item {
                 }
               }
 
-              Rectangle {
-                id: menuButton
-                width: 92
-                height: 25
-                color: "transparent"
-                border.width: 1
-                border.color: root.phosphorDim
-                opacity: frotzProc.running && !root.returningToMenu ? 0.88 : 0.35
+              Row {
+                id: actionButtons
+                spacing: 6
 
-                Text {
-                  anchors.centerIn: parent
-                  text: "MENU  ^M"
-                  color: root.phosphorColor
-                  font.family: "monospace"
-                  font.pixelSize: 11
-                  font.bold: true
-                  font.letterSpacing: 0.7
-                  textFormat: Text.PlainText
-                }
+                Repeater {
+                  model: [{ label: "SAVE  ^S", action: "save" },
+                    { label: "LOAD  ^L", action: "load" },
+                    { label: "MENU  ^M", action: "menu" }]
 
-                HoverHandler {
-                  enabled: frotzProc.running && !root.returningToMenu
-                  cursorShape: Qt.PointingHandCursor
-                }
+                  delegate: Rectangle {
+                    required property var modelData
+                    width: 74
+                    height: 25
+                    color: "transparent"
+                    border.width: 1
+                    border.color: root.phosphorDim
+                    opacity: frotzProc.running && !root.returningToMenu && root.fileActionMode === "" ? 0.88 : 0.35
 
-                TapHandler {
-                  enabled: frotzProc.running && !root.returningToMenu
-                  acceptedButtons: Qt.LeftButton
-                  onTapped: root.returnToMenu()
+                    Text {
+                      anchors.centerIn: parent
+                      text: parent.modelData.label
+                      color: root.phosphorColor
+                      font.family: "monospace"
+                      font.pixelSize: 9
+                      font.bold: true
+                      font.letterSpacing: 0.45
+                      textFormat: Text.PlainText
+                    }
+
+                    HoverHandler {
+                      enabled: frotzProc.running && !root.returningToMenu && root.fileActionMode === ""
+                      cursorShape: Qt.PointingHandCursor
+                    }
+
+                    TapHandler {
+                      enabled: frotzProc.running && !root.returningToMenu && root.fileActionMode === ""
+                      acceptedButtons: Qt.LeftButton
+                      onTapped: {
+                        if (parent.modelData.action === "save") root.beginSave(false, "")
+                        else if (parent.modelData.action === "load") root.beginLoad(false, "")
+                        else root.returnToMenu()
+                      }
+                    }
+                  }
                 }
               }
+            }
+
+            SaveLoadOverlay {
+              id: saveLoadOverlay
+              anchors.fill: parent
+              visible: root.fileActionMode !== ""
+              z: 40
+              controller: root
+              saveModel: saveFiles
             }
           }
 
@@ -1005,7 +1201,7 @@ Item {
           anchors.right: parent.right
           anchors.rightMargin: 20
           anchors.bottom: parent.bottom
-          anchors.bottomMargin: 6
+          anchors.bottomMargin: 14
           z: 31
           radius: 2
           color: "#0d0e0c"
@@ -1082,7 +1278,7 @@ Item {
           anchors.right: parent.right
           anchors.rightMargin: 30
           anchors.bottom: parent.bottom
-          anchors.bottomMargin: 10
+          anchors.bottomMargin: 18
           z: 32
 
           Column {
@@ -1112,9 +1308,10 @@ Item {
 
           Item {
             id: dialFace
-            width: 44
-            height: 44
+            width: 40
+            height: 40
             anchors.right: parent.right
+            anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
 
             Repeater {
@@ -1127,8 +1324,8 @@ Item {
                 width: 1
                 height: index === 0 || index === 6 ? 5 : 4
                 radius: 1
-                x: dialFace.width / 2 + Math.sin(radians) * 20 - width / 2
-                y: dialFace.height / 2 - Math.cos(radians) * 20 - height / 2
+                x: dialFace.width / 2 + Math.sin(radians) * 18 - width / 2
+                y: dialFace.height / 2 - Math.cos(radians) * 18 - height / 2
                 rotation: tickAngle
                 color: "#666357"
                 opacity: 0.8
@@ -1136,9 +1333,9 @@ Item {
             }
 
             Rectangle {
-              width: 32
-              height: 32
-              radius: 16
+              width: 28
+              height: 28
+              radius: 14
               anchors.centerIn: parent
               color: "#24251f"
               border.width: 1
@@ -1147,16 +1344,16 @@ Item {
               Rectangle {
                 anchors.fill: parent
                 anchors.margins: 2
-                radius: 14
+                radius: 12
                 color: "#303128"
                 border.width: 1
                 border.color: "#48483d"
               }
 
               Rectangle {
-                width: 15
-                height: 4
-                radius: 2
+                width: 13
+                height: 3
+                radius: 1.5
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.top
                 anchors.topMargin: 3
@@ -1170,7 +1367,7 @@ Item {
 
                 Rectangle {
                   width: 2
-                  height: 9
+                  height: 8
                   radius: 1
                   anchors.horizontalCenter: parent.horizontalCenter
                   anchors.top: parent.top
@@ -1207,7 +1404,7 @@ Item {
           anchors.right: crtDial.left
           anchors.rightMargin: 14
           anchors.bottom: parent.bottom
-          anchors.bottomMargin: 10
+          anchors.bottomMargin: 18
           z: 32
 
           Column {
@@ -1237,29 +1434,29 @@ Item {
 
           Item {
             id: rgbButton
-            width: 54
-            height: 40
+            width: 34
+            height: 26
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
 
             Rectangle {
-              width: 52
-              height: 35
-              radius: 4
+              width: 32
+              height: 23
+              radius: 3
               anchors.horizontalCenter: parent.horizontalCenter
               anchors.top: parent.top
-              anchors.topMargin: 4
+              anchors.topMargin: 3
               color: "#0e0f0d"
               border.width: 1
               border.color: "#070806"
             }
 
             Rectangle {
-              width: 48
-              height: 31
-              radius: 4
+              width: 28
+              height: 20
+              radius: 3
               anchors.horizontalCenter: parent.horizontalCenter
-              y: rgbTap.pressed ? 5 : 2
+              y: rgbTap.pressed ? 4 : 3
               color: rgbTap.pressed ? "#292a23" : "#37382f"
               border.width: 1
               border.color: rgbTap.pressed ? "#505044" : "#5f5f51"
@@ -1269,8 +1466,8 @@ Item {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.margins: 2
-                height: 4
-                radius: 2
+                height: 2
+                radius: 1
                 color: "#777768"
                 opacity: rgbTap.pressed ? 0.18 : 0.38
               }
@@ -1278,7 +1475,7 @@ Item {
               Row {
                 anchors.centerIn: parent
                 anchors.verticalCenterOffset: 1
-                spacing: 2
+                spacing: 1
 
                 Repeater {
                   model: [{ letter: "R", color: "#c9685f" },
@@ -1290,7 +1487,7 @@ Item {
                     text: modelData.letter
                     color: modelData.color
                     font.family: "monospace"
-                    font.pixelSize: 9
+                    font.pixelSize: 7
                     font.bold: true
                     textFormat: Text.PlainText
                   }
@@ -1299,7 +1496,7 @@ Item {
             }
 
             Rectangle {
-              width: 14
+              width: 10
               height: 2
               radius: 1
               anchors.horizontalCenter: parent.horizontalCenter
@@ -1331,7 +1528,7 @@ Item {
           anchors.right: phosphorSelector.left
           anchors.rightMargin: 14
           anchors.bottom: parent.bottom
-          anchors.bottomMargin: 10
+          anchors.bottomMargin: 18
           z: 32
 
           Column {
@@ -1360,29 +1557,29 @@ Item {
           }
 
           Item {
-            width: 58
-            height: 40
+            width: 34
+            height: 26
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
 
             Rectangle {
-              width: 56
-              height: 35
-              radius: 4
+              width: 32
+              height: 23
+              radius: 3
               anchors.horizontalCenter: parent.horizontalCenter
               anchors.top: parent.top
-              anchors.topMargin: 4
+              anchors.topMargin: 3
               color: "#0e0f0d"
               border.width: 1
               border.color: "#070806"
             }
 
             Rectangle {
-              width: 52
-              height: 31
-              radius: 4
+              width: 28
+              height: 20
+              radius: 3
               anchors.horizontalCenter: parent.horizontalCenter
-              y: scaleTap.pressed ? 5 : 2
+              y: scaleTap.pressed ? 4 : 3
               color: scaleTap.pressed ? "#292a23" : "#37382f"
               border.width: 1
               border.color: scaleTap.pressed ? "#505044" : "#5f5f51"
@@ -1392,8 +1589,8 @@ Item {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.margins: 2
-                height: 4
-                radius: 2
+                height: 2
+                radius: 1
                 color: "#777768"
                 opacity: scaleTap.pressed ? 0.18 : 0.38
               }
@@ -1404,15 +1601,15 @@ Item {
                 text: root.windowScaleLabel
                 color: root.phosphorColor
                 font.family: "monospace"
-                font.pixelSize: 9
+                font.pixelSize: 7
                 font.bold: true
-                font.letterSpacing: 0.4
+                font.letterSpacing: 0.2
                 textFormat: Text.PlainText
               }
             }
 
             Rectangle {
-              width: 14
+              width: 10
               height: 2
               radius: 1
               anchors.horizontalCenter: parent.horizontalCenter
@@ -1443,7 +1640,7 @@ Item {
           anchors.right: scaleSelector.left
           anchors.rightMargin: 12
           anchors.bottom: parent.bottom
-          anchors.bottomMargin: 18
+          anchors.bottomMargin: 26
           z: 32
 
           Rectangle {
