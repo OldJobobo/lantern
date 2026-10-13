@@ -1,0 +1,96 @@
+--- main.c.orig	2026-08-25 13:02:29.693565632 -0700
++++ main.c	2026-08-25 13:03:00.631585769 -0700
+@@ -4,7 +4,6 @@
+  */
+ 
+ #include <ctype.h>
+-#include <editline/readline.h>
+ #include <getopt.h>
+ #include <signal.h>
+ #include <stdbool.h>
+@@ -54,11 +53,17 @@
+ 	 */
+ 	/* Normal case - no script arguments */
+ 	if (settings.argc == 0) {
+-		char *ln = readline(prompt);
+-		if (ln == NULL) {
+-			fputs(prompt, stdout);
++		char *buf = malloc(LINESIZE + 1);
++		if (buf == NULL) {
++			return NULL;
++		}
++		fputs(prompt, stdout);
++		fflush(stdout);
++		if (fgets(buf, LINESIZE, stdin) == NULL) {
++			free(buf);
++			return NULL;
+ 		}
+-		return ln;
++		return buf;
+ 	}
+ 
+ 	char *buf = malloc(LINESIZE + 1);
+@@ -87,16 +92,9 @@
+ 				}
+ 			}
+ 
+-		if (isatty(fileno(settings.scriptfp)) && !settings.oldstyle) {
+-			free(buf);               // LCOV_EXCL_LINE
+-			return readline(prompt); // LCOV_EXCL_LINE
+-		} else {
+-			char *ln = fgets(buf, LINESIZE, settings.scriptfp);
+-			if (ln != NULL) {
+-				fputs(prompt, stdout);
+-				fputs(ln, stdout);
+-				return ln;
+-			}
++		char *ln = fgets(buf, LINESIZE, settings.scriptfp);
++		if (ln != NULL) {
++			return ln;
+ 		}
+ 	}
+ 
+@@ -1463,7 +1461,7 @@
+ 	const char *opts = "dl:oa:";
+ 	const char *usage =
+ 	    "Usage: %s [-l logfilename] [-o] [-a filename] [script...]\n";
+-	const FILE *rfp = NULL;
++	FILE *rfp = NULL;
+ 	const char *autosave_filename = NULL;
+ #elif !defined ADVENT_NOSAVE
+ 	const char *opts = "dl:or:";
+--- misc.c.orig	2026-08-25 13:02:29.695038130 -0700
++++ misc.c	2026-08-25 13:03:13.342317833 -0700
+@@ -6,7 +6,6 @@
+  */
+ 
+ #include <ctype.h>
+-#include <editline/readline.h>
+ #include <inttypes.h>
+ #include <stdarg.h>
+ #include <stdio.h>
+@@ -259,11 +258,7 @@
+ 	// Strip trailing newlines from the input
+ 	input[strcspn(input, "\n")] = 0;
+ 
+-	add_history(input);
+ 
+-	if (!isatty(0)) {
+-		echo_input(stdout, input_prompt, input);
+-	}
+ 
+ 	if (settings.logfp) {
+ 		echo_input(settings.logfp, "", input);
+--- Makefile.orig	2026-08-25 13:02:29.696258635 -0700
++++ Makefile	2026-08-25 13:02:29.770986130 -0700
+@@ -15,8 +15,8 @@
+ 
+ CC?=gcc
+ CCFLAGS+=-std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DVERSION=\"$(VERSION)\" -O2 -D_FORTIFY_SOURCE=2 -fstack-protector-all $(CFLAGS) -g $(EXTRA)
+-LIBS=$(shell pkg-config --libs libedit)
+-INC+=$(shell pkg-config --cflags libedit)
++LIBS=
++INC=
+ 
+ # LLVM/Clang on macOS seems to need -ledit flag for linking
+ UNAME_S := $(shell uname -s)

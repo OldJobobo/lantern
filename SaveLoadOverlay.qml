@@ -196,7 +196,7 @@ Item {
               anchors.left: parent.left
               anchors.leftMargin: 36
               anchors.verticalCenter: parent.verticalCenter
-              text: parent.fileName.replace(/\.qzl$/i, "")
+              text: controller.saveDisplayName(parent.fileName)
               color: controller.phosphorColor
               font.family: "monospace"
               font.pixelSize: 13

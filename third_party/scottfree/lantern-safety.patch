@@ -1,0 +1,267 @@
+--- scott.c
++++ scott.c
+@@ -12,6 +12,11 @@
+  */
+ 
+ /*
++ * Lantern modifications, 2026-08-25: validate database dimensions and
++ * references and add checked action-parameter access for hostile input.
++ */
++
++/*
+  * Parts of this source file (mainly the Glk parts) are copyright 2011
+  * Chris Spiegel.
+  *
+@@ -217,6 +222,8 @@
+ 		if(c=='`')
+ 			c='"'; /* pdd */
+ 
++		if(ct >= (int)sizeof(tmp) - 1)
++			Fatal("Database string is too long");
+ 		/* Ensure a valid Glk newline is sent. */
+ 		if(c=='\n')
+ 			tmp[ct++]=10;
+@@ -254,6 +261,12 @@
+ 	if(fscanf(f,"%*d %d %d %d %d %d %d %d %d %d %d %d",
+ 		&ni,&na,&nw,&nr,&mc,&pr,&tr,&wl,&lt,&mn,&trm)<10)
+ 		Fatal("Invalid database(bad header)");
++	if(ni < 9 || ni > 4096 || na < 0 || na > 20000 ||
++	   nw < 6 || nw > 10000 || nr < 1 || nr > 10000 ||
++	   mc < 0 || mc > ni || pr < 0 || pr > nr ||
++	   tr < 0 || tr > ni || wl < 1 || wl > 16 ||
++	   mn < 0 || mn > 20000 || trm < 0 || trm > nr)
++		Fatal("Invalid database(header values out of range)");
+ 	GameHeader.NumItems=ni;
+ 	Items=(Item *)MemAlloc(sizeof(Item)*(ni+1));
+ 	GameHeader.NumActions=na;
+@@ -294,6 +307,33 @@
+ 			printf("Bad action line (%d)\n",ct);
+ 			exit(1);
+ 		}
++		if(ap->Vocab / 150 > nw || ap->Vocab % 150 > nw)
++			Fatal("Invalid database(action vocabulary out of range)");
++		for(int condition_index=0;condition_index<5;condition_index++)
++		{
++			int condition=ap->Condition[condition_index]%20;
++			int argument=ap->Condition[condition_index]/20;
++			if(((condition>=1 && condition<=3) ||
++			    (condition>=5 && condition<=6) ||
++			    (condition>=12 && condition<=14) ||
++			    (condition>=17 && condition<=18)) && argument>ni)
++				Fatal("Invalid database(action item out of range)");
++			if((condition==4 || condition==7) && argument>nr)
++				Fatal("Invalid database(action room out of range)");
++			if((condition==8 || condition==9) && argument>=(int)(sizeof(long)*8)-1)
++				Fatal("Invalid database(action flag out of range)");
++		}
++		unsigned short encoded_actions[2]={ap->Action[0],ap->Action[1]};
++		for(int encoded_index=0;encoded_index<2;encoded_index++)
++		{
++			int action_codes[2]={encoded_actions[encoded_index]/150,
++			                     encoded_actions[encoded_index]%150};
++			for(int action_index=0;action_index<2;action_index++)
++				if(((action_codes[action_index]>=1 && action_codes[action_index]<52) &&
++			    action_codes[action_index]>mn) ||
++			   (action_codes[action_index]>101 && action_codes[action_index]-50>mn))
++					Fatal("Invalid database(action message out of range)");
++		}
+ 		ap++;
+ 		ct++;
+ 	}
+@@ -319,6 +359,9 @@
+ 			printf("Bad room line (%d)\n",ct);
+ 			exit(1);
+ 		}
++		for(int exit_index=0;exit_index<6;exit_index++)
++			if(rp->Exits[exit_index]<0 || rp->Exits[exit_index]>nr)
++				Fatal("Invalid database(room exit out of range)");
+ 		rp->Text=ReadString(f);
+ 		ct++;
+ 		rp++;
+@@ -353,6 +396,8 @@
+ 			printf("Bad item line (%d)\n",ct);
+ 			exit(1);
+ 		}
++		if(lo<0 || (lo>nr && lo!=255))
++			Fatal("Invalid database(item location out of range)");
+ 		ip->Location=(unsigned char)lo;
+ 		ip->InitialLoc=ip->Location;
+ 		ip++;
+@@ -657,10 +702,28 @@
+ 	return 0;
+ }
+ 
++static int ActionParameterCount=0;
++
++static int NextParam(int param[5], int *position, int maximum, const char *kind)
++{
++	if(*position < 0 || *position >= ActionParameterCount)
++		Fatal("Invalid database(action has too few parameters)");
++	int value=param[(*position)++];
++	if(value < 0)
++		Fatal("Invalid database(action has too few parameters)");
++	if(value > maximum)
++	{
++		char message[128];
++		snprintf(message,sizeof(message),"Invalid database(%s parameter out of range)",kind);
++		Fatal(message);
++	}
++	return value;
++}
++
+ static int PerformLine(int ct)
+ {
+ 	int continuation=0;
+-	int param[5],pptr=0;
++	int param[5]={-1,-1,-1,-1,-1},pptr=0;
+ 	int act[4];
+ 	int cc=0;
+ 	while(cc<5)
+@@ -704,11 +767,11 @@
+ 					return(0);
+ 				break;
+ 			case 8:
+-				if((BitFlags&(1<<dv))==0)
++				if((BitFlags&(1L<<dv))==0)
+ 					return(0);
+ 				break;
+ 			case 9:
+-				if(BitFlags&(1<<dv))
++				if(BitFlags&(1L<<dv))
+ 					return(0);
+ 				break;
+ 			case 10:
+@@ -762,6 +825,7 @@
+ 	act[0]/=150;
+ 	act[2]/=150;
+ 	cc=0;
++	ActionParameterCount=pptr;
+ 	pptr=0;
+ 	while(cc<4)
+ 	{
+@@ -788,16 +852,16 @@
+ 						Output("I've too much to carry! ");
+ 					break;
+ 				}
+-				Items[param[pptr++]].Location= CARRIED;
++				Items[NextParam(param,&pptr,GameHeader.NumItems,"item")].Location= CARRIED;
+ 				break;
+ 			case 53:
+-				Items[param[pptr++]].Location=MyLoc;
++				Items[NextParam(param,&pptr,GameHeader.NumItems,"item")].Location=MyLoc;
+ 				break;
+ 			case 54:
+-				MyLoc=param[pptr++];
++				MyLoc=NextParam(param,&pptr,GameHeader.NumRooms,"room");
+ 				break;
+ 			case 55:
+-				Items[param[pptr++]].Location=0;
++				Items[NextParam(param,&pptr,GameHeader.NumItems,"item")].Location=0;
+ 				break;
+ 			case 56:
+ 				BitFlags|=1<<DARKBIT;
+@@ -806,13 +870,13 @@
+ 				BitFlags&=~(1<<DARKBIT);
+ 				break;
+ 			case 58:
+-				BitFlags|=(1<<param[pptr++]);
++				BitFlags|=(1L<<NextParam(param,&pptr,(int)(sizeof(long)*8)-2,"flag"));
+ 				break;
+ 			case 59:
+-				Items[param[pptr++]].Location=0;
++				Items[NextParam(param,&pptr,GameHeader.NumItems,"item")].Location=0;
+ 				break;
+ 			case 60:
+-				BitFlags&=~(1<<param[pptr++]);
++				BitFlags&=~(1L<<NextParam(param,&pptr,(int)(sizeof(long)*8)-2,"flag"));
+ 				break;
+ 			case 61:
+ 				if(Options&YOUARE)
+@@ -825,8 +889,8 @@
+ 			case 62:
+ 			{
+ 				/* Bug fix for some systems - before it could get parameters wrong */
+-				int i=param[pptr++];
+-				Items[i].Location=param[pptr++];
++				int i=NextParam(param,&pptr,GameHeader.NumItems,"item");
++				Items[i].Location=NextParam(param,&pptr,GameHeader.NumRooms,"room");
+ 				break;
+ 			}
+ 			case 63:
+@@ -908,8 +972,8 @@
+ 				break;
+ 			case 72:
+ 			{
+-				int i1=param[pptr++];
+-				int i2=param[pptr++];
++				int i1=NextParam(param,&pptr,GameHeader.NumItems,"item");
++				int i2=NextParam(param,&pptr,GameHeader.NumItems,"item");
+ 				int t=Items[i1].Location;
+ 				Items[i1].Location=Items[i2].Location;
+ 				Items[i2].Location=t;
+@@ -919,13 +983,13 @@
+ 				continuation=1;
+ 				break;
+ 			case 74:
+-				Items[param[pptr++]].Location= CARRIED;
++				Items[NextParam(param,&pptr,GameHeader.NumItems,"item")].Location= CARRIED;
+ 				break;
+ 			case 75:
+ 			{
+ 				int i1,i2;
+-				i1=param[pptr++];
+-				i2=param[pptr++];
++				i1=NextParam(param,&pptr,GameHeader.NumItems,"item");
++				i2=NextParam(param,&pptr,GameHeader.NumItems,"item");
+ 				Items[i1].Location=Items[i2].Location;
+ 				break;
+ 			}
+@@ -939,7 +1003,7 @@
+ 				OutputNumber(CurrentCounter);
+ 				break;
+ 			case 79:
+-				CurrentCounter=param[pptr++];
++				CurrentCounter=NextParam(param,&pptr,32767,"counter value");
+ 				break;
+ 			case 80:
+ 			{
+@@ -954,17 +1018,17 @@
+ 				   seems to do select counter n, thing, select counter n,
+ 				   but uses one value that always seems to exist. Trying
+ 				   a few options I found this gave sane results on ageing */
+-				int t=param[pptr++];
++				int t=NextParam(param,&pptr,15,"counter slot");
+ 				int c1=CurrentCounter;
+ 				CurrentCounter=Counters[t];
+ 				Counters[t]=c1;
+ 				break;
+ 			}
+ 			case 82:
+-				CurrentCounter+=param[pptr++];
++				CurrentCounter+=NextParam(param,&pptr,32767,"counter value");
+ 				break;
+ 			case 83:
+-				CurrentCounter-=param[pptr++];
++				CurrentCounter-=NextParam(param,&pptr,32767,"counter value");
+ 				if(CurrentCounter< -1)
+ 					CurrentCounter= -1;
+ 				/* Note: This seems to be needed. I don't yet
+@@ -984,7 +1048,7 @@
+ 			{
+ 				/* Changed this to swap location<->roomflag[x]
+ 				   not roomflag 0 and x */
+-				int p=param[pptr++];
++				int p=NextParam(param,&pptr,15,"saved room slot");
+ 				int sr=MyLoc;
+ 				MyLoc=RoomSaved[p];
+ 				RoomSaved[p]=sr;
+@@ -1000,8 +1064,7 @@
+ 				/* Poking this into older spectrum games causes a crash */
+ 				break;
+ 			default:
+-				fprintf(stderr,"Unknown action %d [Param begins %d %d]\n",
+-					act[cc],param[pptr],param[pptr+1]);
++				fprintf(stderr,"Unknown action %d\n",act[cc]);
+ 				break;
+ 		}
+ 		cc++;

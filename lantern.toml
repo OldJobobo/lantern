@@ -33,3 +33,12 @@ default_cartridge = 1
 [controls]
 # Amount changed by one mouse-wheel step over the BRIGHT dial.
 dial_step = 0.05
+
+[audio]
+# Quiet original paper travel sounds; missing audio devices fail silently.
+mute = false
+paper_volume = 0.18
+
+[accessibility]
+# Replace the explorer-map paper travel with immediate state changes.
+reduce_motion = false

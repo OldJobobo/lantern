@@ -33,7 +33,13 @@ test("cleanOutput hides interpreter filename prompts without losing game output"
 test("normalizeSaveName creates a bounded save-root filename stem", () => {
   assert.equal(Model.normalizeSaveName("  Zork I / west.qzl\n"), "Zork I west")
   assert.equal(Model.normalizeSaveName("../escape"), "escape")
+  assert.equal(Model.normalizeSaveName("Scott slot.sav"), "Scott slot")
   assert.equal(Model.normalizeSaveName("x".repeat(80)).length, 20)
+})
+
+test("cleanOutput hides ScottFree prompts", () => {
+  assert.equal(Model.cleanOutput("Tell me what to do ? Saved."), "Saved.")
+  assert.equal(Model.cleanOutput("Please enter a save to restore: Lantern Test Chamber"), "Lantern Test Chamber")
 })
 
 test("appendTranscript bounds retained lines and preserves newest prose", () => {
@@ -85,6 +91,35 @@ test("bundledStoryPath accepts only an exact bundled cartridge path", () => {
   assert.equal(Model.bundledStoryPath(`${bundled[0]}/../zork2.z3`, bundled), "")
   assert.equal(Model.bundledStoryPath(`${bundled[0]}\n--evil`, bundled), "")
   assert.equal(Model.bundledStoryPath(bundled[0], []), "")
+})
+
+test("bundledCartridgeId accepts only explicit safe cartridge IDs", () => {
+  const allowed = ["zork1", "colossal-cave"]
+  assert.equal(Model.bundledCartridgeId("colossal-cave", allowed), "colossal-cave")
+  assert.equal(Model.bundledCartridgeId("../colossal-cave", allowed), "")
+  assert.equal(Model.bundledCartridgeId("zork1\n--evil", allowed), "")
+  assert.equal(Model.bundledCartridgeId("unknown", allowed), "")
+})
+
+test("localFilePath decodes only absolute local file URLs", () => {
+  assert.equal(Model.localFilePath("file:///home/me/My%20Story.z5"), "/home/me/My Story.z5")
+  assert.equal(Model.localFilePath("file://localhost/home/me/story.z3"), "/home/me/story.z3")
+  assert.equal(Model.localFilePath("https://example.com/story.z3"), "")
+  assert.equal(Model.localFilePath("file://server/share/story.z3"), "")
+  assert.equal(Model.localFilePath("file:///tmp/story.z3\n--evil"), "")
+})
+
+test("imported cartridge metadata is stable and display-safe", () => {
+  assert.equal(Model.cartridgeTitle("the-lost_pig.z8"), "THE LOST PIG")
+  assert.match(Model.importedCartridgeId("The Lost Pig.z8"), /^imported-the-lost-pig-[0-9a-f]{16}$/)
+  assert.equal(Model.cartridgeTitle("Adventureland.dat"), "ADVENTURELAND")
+  assert.match(Model.importedCartridgeId("Adventureland.dat"), /^imported-adventureland-[0-9a-f]{16}$/)
+  assert.equal(Model.cartridgeTitle(".z5"), "")
+  assert.match(Model.importedCartridgeId(".z5"), /^imported-story-[0-9a-f]{16}$/)
+  assert.notEqual(
+    Model.importedCartridgeId("abcdefghijklmnopqrstuvwxyzabcdefghijklm-one.dat"),
+    Model.importedCartridgeId("abcdefghijklmnopqrstuvwxyzabcdefghijklm-two.dat")
+  )
 })
 
 test("boundedFileText rejects reader output above the byte cap", () => {

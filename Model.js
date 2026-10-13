@@ -9,6 +9,8 @@ function cleanOutput(raw) {
     .replace(/\u0000/g, "")
     .replace(/>?Please enter a filename \[[^\]\n]*\]:[ \t]*/g, "")
     .replace(/Overwrite existing file\?[ \t]*/g, "")
+    .replace(/Please enter a save(?: name| to restore):[ \t]*/g, "")
+    .replace(/Tell me what to do \?[ \t]*/g, "")
   var lines = text.split("\n")
   for (var i = 0; i < lines.length; i++) {
     if (lines[i].indexOf("> ") === 0 && lines[i].indexOf("Score:") !== -1 && lines[i].indexOf("Moves:") !== -1)
@@ -22,7 +24,7 @@ function cleanOutput(raw) {
 function normalizeSaveName(raw) {
   return String(raw || "")
     .replace(/[\r\n\u0000]/g, " ")
-    .replace(/\.qzl\s*$/i, "")
+    .replace(/\.(?:qzl|sav)\s*$/i, "")
     .replace(/[^A-Za-z0-9 _-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -58,6 +60,48 @@ function bundledStoryPath(raw, allowedPaths) {
   var allowed = Array.isArray(allowedPaths) ? allowedPaths : []
   if (value === "" || /[\r\n\u0000]/.test(value)) return ""
   return allowed.indexOf(value) === -1 ? "" : value
+}
+
+function bundledCartridgeId(raw, allowedIds) {
+  var value = String(raw || "")
+  var allowed = Array.isArray(allowedIds) ? allowedIds : []
+  if (!/^[a-z0-9][a-z0-9-]{0,47}$/.test(value)) return ""
+  return allowed.indexOf(value) === -1 ? "" : value
+}
+
+function localFilePath(raw) {
+  var value = String(raw || "")
+  if (value.indexOf("file://") !== 0 || /[\r\n\u0000]/.test(value)) return ""
+  var encoded = value.slice(7)
+  if (encoded.indexOf("localhost/") === 0) encoded = encoded.slice(9)
+  if (encoded.indexOf("/") !== 0) return ""
+  try { return decodeURIComponent(encoded) } catch (error) { return "" }
+}
+
+function cartridgeTitle(raw) {
+  return String(raw || "")
+    .replace(/\.(?:z[1-8]|dat)$/i, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 48)
+    .toUpperCase()
+}
+
+function importedCartridgeId(raw) {
+  var source = String(raw || "").toLowerCase()
+  var name = source.replace(/\.(?:z[1-8]|dat)$/i, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24)
+  var hash1 = 0x811c9dc5
+  var hash2 = 0x9e3779b9
+  for (var index = 0; index < source.length; index++) {
+    var code = source.charCodeAt(index)
+    hash1 = Math.imul(hash1 ^ code, 0x01000193) >>> 0
+    hash2 = Math.imul(hash2 ^ code, 0x85ebca6b) >>> 0
+  }
+  var digest = ("00000000" + hash1.toString(16)).slice(-8)
+    + ("00000000" + hash2.toString(16)).slice(-8)
+  return "imported-" + (name || "story") + "-" + digest
 }
 
 function boundedFileText(raw, maxBytes) {
@@ -111,6 +155,10 @@ if (typeof module !== "undefined") {
     historyStep: historyStep,
     menuStep: menuStep,
     bundledStoryPath: bundledStoryPath,
+    bundledCartridgeId: bundledCartridgeId,
+    localFilePath: localFilePath,
+    cartridgeTitle: cartridgeTitle,
+    importedCartridgeId: importedCartridgeId,
     boundedFileText: boundedFileText,
     parseLanternConfig: parseLanternConfig
   }

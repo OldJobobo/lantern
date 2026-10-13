@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="1536" viewBox="0 0 2048 1536" role="img" aria-label="A partially completed hand-drawn map of the opening area of Zork on aged graph paper">
+  <defs>
+    <filter id="pencil" x="-3%" y="-3%" width="106%" height="106%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.018 0.14" numOctaves="2" seed="17" result="wobble"/>
+      <feDisplacementMap in="SourceGraphic" in2="wobble" scale="1.7" xChannelSelector="R" yChannelSelector="G" result="rough"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.42" numOctaves="2" seed="9" result="grain"/>
+      <feColorMatrix in="grain" type="matrix" values="
+        0 0 0 0 1
+        0 0 0 0 1
+        0 0 0 0 1
+        .12 .24 .12 0 .48" result="grainAlpha"/>
+      <feComposite in="rough" in2="grainAlpha" operator="in"/>
+    </filter>
+    <filter id="smudge" x="-20%" y="-40%" width="140%" height="180%">
+      <feGaussianBlur stdDeviation="3.5 1.2"/>
+    </filter>
+    <marker id="pencil-arrow" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M1 1 L7 4 L1 7" fill="none" stroke="#4c463e" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .ink { fill: none; stroke: #514b43; stroke-width: 4.2; stroke-linecap: round; stroke-linejoin: round; }
+      .faint { fill: none; stroke: #6c6255; stroke-width: 2.1; stroke-linecap: round; opacity: .42; }
+      .route { fill: none; stroke: #514b43; stroke-width: 4.4; stroke-linecap: round; stroke-linejoin: round; }
+      .unfinished { fill: none; stroke: #514b43; stroke-width: 3.5; stroke-linecap: round; stroke-dasharray: 13 11; opacity: .7; }
+      .room { fill: #eee8d7; fill-opacity: .14; stroke: #514b43; stroke-width: 4.1; stroke-linecap: round; stroke-linejoin: round; }
+      .label { fill: #423e38; font-family: "Liberation Mono", monospace; font-size: 29px; font-weight: 600; letter-spacing: .4px; text-anchor: middle; }
+      .small { fill: #544c43; font-family: Z003, cursive; font-size: 34px; font-style: italic; }
+      .tiny { fill: #5b5349; font-family: "Liberation Mono", monospace; font-size: 21px; font-style: italic; }
+    </style>
+  </defs>
+
+  <image href="old-graph-paper.png" x="0" y="0" width="2048" height="1536" preserveAspectRatio="none"/>
+
+  <g opacity=".12" filter="url(#smudge)" fill="#655b4f">
+    <ellipse cx="632" cy="527" rx="108" ry="13"/>
+    <ellipse cx="1280" cy="1034" rx="142" ry="10"/>
+    <ellipse cx="1574" cy="741" rx="84" ry="8"/>
+  </g>
+
+  <g filter="url(#pencil)">
+    <text x="1024" y="144" fill="#403b35" font-family="Liberation Mono, monospace" font-size="57" font-weight="700" letter-spacing="6" text-anchor="middle">ZORK I — ROUGH MAP</text>
+    <path d="M565 162 C836 155 1192 169 1480 159" class="faint"/>
+    <text x="1024" y="194" class="tiny" text-anchor="middle">unfinished • distances guessed • arrows need checking</text>
+
+    <!-- compass -->
+    <g transform="translate(1740 205) rotate(-4)">
+      <path d="M0 98 L0 5 M-10 21 L0 5 L10 21 M-65 54 L65 54 M49 44 L65 54 L49 64" class="ink" marker-end="none"/>
+      <text x="0" y="-5" class="label" font-size="24">N</text>
+      <text x="82" y="63" class="label" font-size="24">E</text>
+      <path d="M-27 86 Q0 69 27 86" class="faint"/>
+    </g>
+
+    <!-- above-ground routes -->
+    <path d="M420 398 C457 345 493 302 542 276" class="route"/>
+    <path d="M420 441 C455 492 493 526 546 545" class="route"/>
+    <path d="M706 267 C766 276 802 315 845 361" class="route"/>
+    <path d="M707 548 C768 529 812 484 850 430" class="route"/>
+    <path d="M1003 397 C1048 397 1081 399 1122 402" class="route" marker-end="url(#pencil-arrow)"/>
+    <text x="1054" y="382" class="tiny">window</text>
+
+    <!-- above-ground rooms -->
+    <g transform="rotate(-1.5 338 420)">
+      <path d="M240 374 L435 368 L443 464 L236 468 Z" class="room"/>
+      <text x="340" y="408" class="label"><tspan x="340">WEST OF</tspan><tspan x="340" dy="32">HOUSE</tspan></text>
+      <path d="M253 350 C274 330 291 339 303 354" class="faint"/>
+      <text x="281" y="327" class="small">START</text>
+    </g>
+
+    <g transform="rotate(.8 624 270)">
+      <path d="M533 226 L718 229 L712 309 L526 305 Z" class="room"/>
+      <text x="622" y="260" class="label"><tspan x="622">NORTH OF</tspan><tspan x="622" dy="31">HOUSE</tspan></text>
+    </g>
+
+    <g transform="rotate(-.7 627 548)">
+      <path d="M531 506 L719 502 L724 590 L526 594 Z" class="room"/>
+      <text x="625" y="540" class="label"><tspan x="625">SOUTH OF</tspan><tspan x="625" dy="31">HOUSE</tspan></text>
+    </g>
+
+    <g transform="rotate(1.2 914 401)">
+      <path d="M826 356 L1008 352 L1004 447 L820 443 Z" class="room"/>
+      <text x="914" y="390" class="label"><tspan x="914">BEHIND</tspan><tspan x="914" dy="32">HOUSE</tspan></text>
+    </g>
+
+    <!-- house interior -->
+    <g transform="rotate(-.9 1213 401)">
+      <path d="M1121 357 L1301 354 L1307 447 L1117 451 Z" class="room"/>
+      <text x="1211" y="412" class="label">KITCHEN</text>
+    </g>
+    <path d="M1211 352 C1209 335 1211 322 1214 309" class="route" marker-end="url(#pencil-arrow)"/>
+    <text x="1228" y="335" class="tiny">up</text>
+    <g transform="rotate(1.5 1213 276)">
+      <path d="M1134 239 L1291 234 L1297 311 L1130 314 Z" class="room"/>
+      <text x="1213" y="285" class="label">ATTIC</text>
+    </g>
+
+    <path d="M1307 402 C1364 399 1407 402 1450 407" class="route"/>
+    <g transform="rotate(.6 1552 408)">
+      <path d="M1448 358 L1658 355 L1663 459 L1444 463 Z" class="room"/>
+      <text x="1553" y="419" class="label">LIVING ROOM</text>
+    </g>
+    <path d="M1550 463 C1545 514 1539 552 1538 600" class="route" marker-end="url(#pencil-arrow)"/>
+    <text x="1565" y="530" class="small" transform="rotate(4 1565 530)">under rug—trap door</text>
+
+    <!-- underground -->
+    <g transform="rotate(-1.1 1536 651)">
+      <path d="M1455 605 L1623 601 L1628 694 L1451 698 Z" class="room"/>
+      <text x="1539" y="662" class="label">CELLAR</text>
+    </g>
+    <path d="M1453 655 C1389 657 1349 679 1306 721" class="route"/>
+    <text x="1367" y="648" class="tiny">dark</text>
+
+    <g transform="rotate(1.4 1210 760)">
+      <path d="M1108 711 L1313 707 L1320 806 L1103 811 Z" class="room"/>
+      <text x="1211" y="770" class="label">TROLL ROOM</text>
+    </g>
+    <path d="M1120 775 C1052 776 996 789 940 825" class="route"/>
+    <path d="M1169 825 l24 25 m-1 -28 l-22 28" class="ink"/>
+    <text x="1147" y="858" class="small" transform="rotate(-5 1147 858)">TROLL! bring sword?</text>
+
+    <g transform="rotate(-.5 829 850)">
+      <path d="M709 804 L952 800 L958 896 L704 901 Z" class="room"/>
+      <text x="831" y="844" class="label"><tspan x="831">E–W</tspan><tspan x="831" dy="32">PASSAGE</tspan></text>
+    </g>
+    <path d="M707 853 C651 856 608 871 557 902" class="route" marker-end="url(#pencil-arrow)"/>
+
+    <g transform="rotate(1 465 938)">
+      <path d="M371 894 C419 881 508 881 560 902 L570 967 C532 997 414 998 365 970 Z" class="room"/>
+      <text x="466" y="947" class="label">ROUND ROOM</text>
+    </g>
+
+    <!-- incomplete unexplored branches -->
+    <path d="M408 982 C374 1032 356 1078 351 1134" class="unfinished"/>
+    <path d="M529 979 C565 1030 603 1062 653 1089" class="unfinished"/>
+    <path d="M371 934 C316 917 278 908 232 911" class="unfinished"/>
+    <text x="338" y="1175" class="small" transform="rotate(-7 338 1175)">?</text>
+    <text x="668" y="1115" class="small" transform="rotate(8 668 1115)">loud water?</text>
+    <text x="194" y="920" class="small" transform="rotate(-6 194 920)">?</text>
+
+    <!-- marginal notes -->
+    <g transform="rotate(-3 1320 1040)">
+      <text x="1120" y="1022" class="small">to do:</text>
+      <path d="M1115 1037 C1198 1032 1279 1038 1360 1033" class="faint"/>
+      <text x="1135" y="1075" class="small">□ map maze</text>
+      <text x="1135" y="1118" class="small">□ open grating?</text>
+      <text x="1135" y="1161" class="small">□ don’t lose lamp</text>
+      <path d="M1115 1182 C1260 1176 1388 1185 1510 1176" class="faint"/>
+    </g>
+
+    <g transform="rotate(4 1710 1110)">
+      <path d="M1617 1040 C1652 1017 1717 1021 1758 1046 C1786 1066 1784 1127 1755 1150 C1718 1174 1650 1162 1622 1136 C1603 1114 1601 1061 1617 1040 Z" class="faint"/>
+      <text x="1694" y="1085" class="small" text-anchor="middle">SAVE</text>
+      <text x="1694" y="1123" class="small" text-anchor="middle">OFTEN!</text>
+    </g>
+
+    <text x="300" y="1340" class="tiny" transform="rotate(-1.5 300 1340)">pencil map — page 1</text>
+    <path d="M280 1360 C490 1351 694 1366 891 1356" class="faint"/>
+  </g>
+</svg>

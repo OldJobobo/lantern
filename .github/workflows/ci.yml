@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**']
   pull_request:
 
 permissions:
@@ -18,23 +18,54 @@ jobs:
           node-version: 22
       - name: Contract and model tests
         run: ./tests/run
-      - name: Validate Qt shader assets
+      - name: Verify wrong-owner state rejection in an isolated test fixture
+        run: sudo "$(command -v node)" --test tests/map-state.test.js
+      - name: Install pinned Qt validation toolchain
         run: |
+          # QtQuick.Effects needs Qt >= 6.5; do not use Ubuntu's older Qt 6.4.
           sudo apt-get update
-          sudo apt-get install --yes qt6-shader-baker
-          /usr/lib/qt6/bin/qsb -o "$RUNNER_TEMP/crt.frag.qsb" shaders/crt.frag
-          /usr/lib/qt6/bin/qsb --dump "$RUNNER_TEMP/crt.frag.qsb" >/dev/null
+          sudo apt-get install --yes libegl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0 libpulse0
+          python3 -m venv "$RUNNER_TEMP/aqt"
+          "$RUNNER_TEMP/aqt/bin/python" -m pip install aqtinstall==3.3.0
+          "$RUNNER_TEMP/aqt/bin/python" -m aqt install-qt linux desktop 6.8.3 linux_gcc_64 --outputdir "$RUNNER_TEMP/qt" --modules qtmultimedia qtshadertools
+          echo "$RUNNER_TEMP/qt/6.8.3/gcc_64/bin" >> "$GITHUB_PATH"
+      - name: Validate QML, interactions, and shader assets
+        run: |
+          for file in Panel.qml BarWidget.qml EngineMenu.qml CartridgeMenu.qml SaveLoadOverlay.qml MapOverlay.qml MapCanvas.qml PaperSound.qml; do
+            qmlformat "$file" >/dev/null
+          done
+          qmllint -I . MapCanvas.qml MapOverlay.qml PaperSound.qml tests/manual/MapPreview.qml
+          mkdir -m 0700 "$RUNNER_TEMP/qt-runtime"
+          QT_QPA_PLATFORM=offscreen XDG_RUNTIME_DIR="$RUNNER_TEMP/qt-runtime" qmltestrunner -input tests/qml -o -,txt
+          qsb -o "$RUNNER_TEMP/crt.frag.qsb" shaders/crt.frag
+          qsb --dump "$RUNNER_TEMP/crt.frag.qsb" >/dev/null
       - name: Verify bundled artifacts
         run: sha256sum -c third_party/SHA256SUMS
       - name: Rebuild and verify exact bounded reader
         run: |
           ./scripts/build-bounded-reader "$RUNNER_TEMP/read-bounded-file"
           cmp --silent bin/read-bounded-file "$RUNNER_TEMP/read-bounded-file"
+      - name: Rebuild and verify exact cartridge helper
+        run: |
+          ./scripts/build-cartridge-helper "$RUNNER_TEMP/lantern-cartridge"
+          cmp --silent bin/lantern-cartridge "$RUNNER_TEMP/lantern-cartridge"
+      - name: Rebuild and verify exact map-state helper
+        run: |
+          ./scripts/build-map-state-helper "$RUNNER_TEMP/lantern-map-state"
+          cmp --silent bin/lantern-map-state "$RUNNER_TEMP/lantern-map-state"
+      - name: Rebuild and verify exact Open Adventure runtime
+        run: |
+          ./scripts/build-open-adventure "$RUNNER_TEMP/advent"
+          cmp --silent runtime/x86_64-linux/advent "$RUNNER_TEMP/advent"
+      - name: Rebuild and verify exact ScottFree runtime
+        run: |
+          ./scripts/build-scottfree "$RUNNER_TEMP/scottfree"
+          cmp --silent runtime/x86_64-linux/scottfree "$RUNNER_TEMP/scottfree"
       - name: Build corresponding Frotz source
         run: |
           mkdir -p /tmp/lantern-frotz-source
           tar -C /tmp/lantern-frotz-source -xzf third_party/frotz/source/frotz-2.55.tar.gz
           make -C /tmp/lantern-frotz-source/frotz-2.55 PREFIX=/usr dumb
           test -x /tmp/lantern-frotz-source/frotz-2.55/dfrotz
-      - name: Smoke bundled interpreter and Zork trilogy
+      - name: Smoke bundled engines and factory cartridges
         run: ./tests/smoke-runtime

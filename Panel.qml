@@ -3,9 +3,9 @@ import QtQuick.Controls
 import Qt.labs.folderlistmodel
 import Quickshell
 import Quickshell.Io
-import qs.Commons
-import qs.Ui
 import "Model.js" as Model
+import "Automap.js" as Automap
+import "AutomapSession.js" as AutomapSession
 
 Item {
   id: root
@@ -22,8 +22,17 @@ Item {
   property bool startPending: false
   property bool returningToMenu: false
   property string pendingStoryPath: ""
+  property var pendingCartridge: null
+  property var currentCartridge: null
   property string viewMode: "menu"
+  property string launcherStage: "engines"
+  property int engineIndex: 0
   property int menuIndex: 0
+  property string importSourcePath: ""
+  property string importEngineId: ""
+  property string importedFileName: ""
+  property string importMessage: ""
+  property bool importPending: false
   property bool crtEffects: true
   property real crtRasterOpacity: 1.0
   property real crtRasterGain: 2.25
@@ -49,6 +58,19 @@ Item {
   property bool saveOverwritePending: false
   property int loadSaveIndex: 0
   property string fileActionMessage: ""
+  property bool reduceMotion: false
+  property bool audioMuted: false
+  property real paperVolume: 0.18
+  property int mapSessionEpoch: 0
+  property string mapFingerprint: ""
+  property var mapState: Automap.createEmptyState({ engine: "", sha256: "" })
+  property var mapCommandQueue: AutomapSession.createCommandQueue(64)
+  property bool mapObserverReady: false
+  property var mapLastStatus: null
+  property bool mapObserverSuppressed: false
+  property var mapPersistenceQueue: []
+  property var mapActiveOperation: null
+  property bool mapFinalizationPending: false
 
   readonly property var window: windowLoader.item
   readonly property int baseWindowWidth: 1020
@@ -63,33 +85,54 @@ Item {
   readonly property string bundledConfigPath: pluginRoot + "/lantern.toml"
   readonly property string userConfigPath: configRoot + "/lantern/lantern.toml"
   readonly property string themeColorsPath: homePath + "/.local/state/omarchy/current/theme/colors.toml"
+  readonly property string dataRoot: Quickshell.env("XDG_DATA_HOME") || homePath + "/.local/share"
   readonly property string runtimePath: pluginRoot + "/runtime/x86_64-linux/dfrotz"
+  readonly property string adventureRuntimePath: pluginRoot + "/runtime/x86_64-linux/advent"
+  readonly property string scottFreeRuntimePath: pluginRoot + "/runtime/x86_64-linux/scottfree"
   readonly property string bundledStoryPath: pluginRoot + "/games/zork1.z3"
   readonly property string zork2StoryPath: pluginRoot + "/games/zork2.z3"
   readonly property string zork3StoryPath: pluginRoot + "/games/zork3.z3"
+  readonly property string cartridgeRoot: dataRoot + "/lantern/cartridges"
+  readonly property string cartridgeHelper: pluginRoot + "/bin/lantern-cartridge"
+  readonly property string mapStateHelper: pluginRoot + "/bin/lantern-map-state"
   readonly property string windowStateHelper: pluginRoot + "/bin/window-state"
   readonly property string boundedFileReader: pluginRoot + "/bin/read-bounded-file"
   readonly property int boundedFileBytes: 65536
   readonly property string saveRoot: stateRoot + "/lantern/saves"
-  readonly property var bundledGames: [{
-    id: "zork1",
-    number: "01",
-    title: "ZORK I",
-    subtitle: "THE GREAT UNDERGROUND EMPIRE  /  INFOCOM, 1980",
-    path: bundledStoryPath
+  readonly property string currentSaveRoot: currentCartridge ? saveRootFor(currentCartridge) : saveRoot
+  readonly property string adventureAutosavePath: saveRoot + "/open-adventure/colossal-cave-1.22.sav"
+  readonly property var engines: [{
+    id: "zmachine",
+    title: "Z-MACHINE",
+    detail: "FROTZ 2.55  /  Z1-Z8"
   }, {
-    id: "zork2",
-    number: "02",
-    title: "ZORK II",
-    subtitle: "THE WIZARD OF FROBOZZ  /  INFOCOM, 1981",
-    path: zork2StoryPath
+    id: "adventure",
+    title: "OPEN ADVENTURE",
+    detail: "NATIVE 1.22  /  430 PT"
   }, {
-    id: "zork3",
-    number: "03",
-    title: "ZORK III",
-    subtitle: "THE DUNGEON MASTER  /  INFOCOM, 1982",
-    path: zork3StoryPath
+    id: "scottfree",
+    title: "SCOTT ADAMS",
+    detail: "SCOTTFREE 1.14  /  DAT"
   }]
+  readonly property var bundledGames: [{
+    id: "zork1", engine: "zmachine", number: "01", title: "ZORK I",
+    subtitle: "THE GREAT UNDERGROUND EMPIRE  /  INFOCOM, 1980", path: bundledStoryPath,
+    runtime: runtimePath, source: "factory", saveMode: "frotz"
+  }, {
+    id: "zork2", engine: "zmachine", number: "02", title: "ZORK II",
+    subtitle: "THE WIZARD OF FROBOZZ  /  INFOCOM, 1981", path: zork2StoryPath,
+    runtime: runtimePath, source: "factory", saveMode: "frotz"
+  }, {
+    id: "zork3", engine: "zmachine", number: "03", title: "ZORK III",
+    subtitle: "THE DUNGEON MASTER  /  INFOCOM, 1982", path: zork3StoryPath,
+    runtime: runtimePath, source: "factory", saveMode: "frotz"
+  }]
+  readonly property var adventureCartridge: ({
+    id: "colossal-cave", engine: "adventure", number: "04", title: "COLOSSAL CAVE ADVENTURE",
+    subtitle: "CROWTHER & WOODS  /  OPEN ADVENTURE 1.22", path: "",
+    runtime: adventureRuntimePath, source: "factory", saveMode: "autosave"
+  })
+  readonly property var menuCartridges: buildMenuCartridges()
   readonly property string lanternLogo:
     " _        _    _   _ _____ _____ ____  _   _\n" +
     "| |      / \\  | \\ | |_   _| ____|  _ \\| \\ | |\n" +
@@ -103,7 +146,133 @@ Item {
     : phosphor === "theme" ? themeScreenColor
     : phosphor === "white" ? "#0a0f0d" : "#120d06"
   readonly property color phosphorDim: Qt.rgba(phosphorColor.r, phosphorColor.g, phosphorColor.b, 0.48)
+  readonly property color phosphorMuted: Qt.rgba(phosphorColor.r, phosphorColor.g, phosphorColor.b, 0.72)
+  readonly property bool supportsMemoryBank: currentCartridge && (currentCartridge.saveMode === "frotz" || currentCartridge.saveMode === "scottfree")
+  readonly property string saveExtension: currentCartridge && currentCartridge.saveMode === "scottfree" ? ".sav" : ".qzl"
   readonly property string phosphorLabel: phosphor === "green" ? "GRN" : phosphor === "theme" ? "THM" : "AMB"
+  readonly property string mapSessionKey: mapFingerprint === "" ? "" : "zmachine:" + mapFingerprint
+  readonly property bool mapCartridgeSupported: Automap.supportsCartridge("zmachine", mapFingerprint)
+  readonly property bool mapAvailable: viewMode === "game" && gameProc.running && fileActionMode === "" &&
+    currentCartridge && currentCartridge.engine === "zmachine" && mapCartridgeSupported &&
+    mapObserverReady && !mapObserverSuppressed
+  readonly property string mapUnavailableReason: currentCartridge && currentCartridge.engine !== "zmachine"
+    ? "AUTOMAP IS NOT AVAILABLE FOR THIS ENGINE"
+    : mapObserverSuppressed ? "AUTOMAP PAUSED AFTER AMBIGUOUS COMMAND TIMING"
+    : mapFingerprint === "" ? "CARTRIDGE IDENTITY IS UNAVAILABLE"
+    : !mapCartridgeSupported ? "AUTOMAP IN 0.2.0 SUPPORTS THE BUNDLED ZORK I STORY ONLY"
+    : !mapObserverReady ? "WAITING FOR THE FIRST CONFIRMED ROOM"
+    : fileActionMode !== "" ? "CLOSE THE MEMORY OVERLAY TO OPEN THE MAP"
+    : "AUTOMAP IS NOT AVAILABLE RIGHT NOW"
+
+  function currentEngineId() {
+    return engines[Math.max(0, Math.min(engines.length - 1, engineIndex))].id
+  }
+
+  function buildMenuCartridges() {
+    var engine = currentEngineId()
+    if (engine === "adventure") return [adventureCartridge]
+
+    var cartridges = engine === "zmachine" ? bundledGames.slice(0) : []
+    var importedModel = engine === "zmachine" ? importedStories : importedScottStories
+    var importedCount = importedModel ? importedModel.count : 0
+    for (var i = 0; i < importedCount; i++) {
+      var fileName = String(importedModel.get(i, "fileName") || "")
+      cartridges.push({
+        id: Model.importedCartridgeId(fileName),
+        engine: engine,
+        number: "U" + (i + 1 < 10 ? "0" : "") + String(i + 1),
+        title: Model.cartridgeTitle(fileName),
+        subtitle: engine === "zmachine" ? "IMPORTED Z-MACHINE STORY  /  " + fileName.toUpperCase()
+          : "IMPORTED SCOTT ADAMS DATABASE  /  " + fileName.toUpperCase(),
+        path: cartridgeRoot + "/" + fileName,
+        runtime: engine === "zmachine" ? runtimePath : scottFreeRuntimePath,
+        source: "imported",
+        saveMode: engine === "zmachine" ? "frotz" : "scottfree",
+        action: ""
+      })
+    }
+    if (engine === "scottfree" && importedCount === 0) cartridges.push({
+      action: "empty", number: "--", title: "NO CARTRIDGES LOADED",
+      subtitle: "SCOTT ADAMS GAMES ARE NOT BUNDLED  /  PRESS I TO IMPORT A LEGAL .DAT FILE"
+    })
+    cartridges.push({ action: "import", title: "IMPORT CARTRIDGE" })
+    return cartridges
+  }
+
+  function selectEngine(index) {
+    engineIndex = Math.max(0, Math.min(engines.length - 1, Number(index)))
+    menuIndex = 0
+    statusText = "SELECT ENGINE"
+    Qt.callLater(function() { root.focusCurrentView() })
+  }
+
+  function moveEngineSelection(direction) {
+    selectEngine(Model.menuStep(engineIndex, engines.length, direction))
+  }
+
+  function enterSelectedEngine() {
+    menuIndex = 0
+    launcherStage = "cartridges"
+    statusText = "SELECT CARTRIDGE"
+    Qt.callLater(function() { root.focusCurrentView() })
+  }
+
+  function backToEngines() {
+    launcherStage = "engines"
+    statusText = "SELECT ENGINE"
+    Qt.callLater(function() { root.focusCurrentView() })
+  }
+
+  function cartridgeForBundledPath(path) {
+    for (var i = 0; i < bundledGames.length; i++)
+      if (bundledGames[i].path === path) return bundledGames[i]
+    return null
+  }
+
+  function quickBoot(index) {
+    if (index >= 0 && index < bundledGames.length) {
+      engineIndex = 0
+      menuIndex = index
+      launchCartridge(bundledGames[index])
+    } else if (index === 3) {
+      engineIndex = 1
+      menuIndex = 0
+      launchCartridge(adventureCartridge)
+    }
+  }
+
+  function beginCartridgeImport() {
+    var engine = currentEngineId()
+    if ((engine !== "zmachine" && engine !== "scottfree") || gameProc.running || startPending || importPending) return
+    importEngineId = engine
+    importMessage = ""
+    statusText = "AWAITING CARTRIDGE"
+    cartridgePicker.resultText = ""
+    cartridgePicker.command = ["zenity", "--file-selection", "--title",
+      engine === "scottfree" ? "Import a Scott Adams cartridge" : "Import a Z-machine cartridge",
+      engine === "scottfree"
+        ? "--file-filter=Scott Adams databases | *.dat"
+        : "--file-filter=Z-machine stories | *.z1 *.z2 *.z3 *.z4 *.z5 *.z6 *.z7 *.z8",
+      "--file-filter=All files | *"]
+    cartridgePicker.running = true
+  }
+
+  function selectImportedFile() {
+    if (importedFileName === "") return
+    var model = importEngineId === "scottfree" ? importedScottStories : importedStories
+    for (var i = 0; i < model.count; i++) {
+      if (String(model.get(i, "fileName") || "") === importedFileName) {
+        engineIndex = importEngineId === "scottfree" ? 2 : 0
+        launcherStage = "cartridges"
+        menuIndex = (importEngineId === "scottfree" ? 0 : bundledGames.length) + i
+        statusText = "CARTRIDGE READY"
+        importedFileName = ""
+        importEngineId = ""
+        Qt.callLater(function() { root.focusCurrentView() })
+        return
+      }
+    }
+  }
 
   function loadThemePalette(raw) {
     var values = {}
@@ -152,6 +321,8 @@ Item {
     var terminal = config.terminal || {}
     var launcher = config.launcher || {}
     var controls = config.controls || {}
+    var accessibility = config.accessibility || {}
+    var audio = config.audio || {}
 
     if (display.phosphor === "amber" || display.phosphor === "green" || display.phosphor === "theme" || display.phosphor === "white")
       phosphor = display.phosphor
@@ -162,6 +333,10 @@ Item {
     historyLimit = Math.round(configNumber(terminal.history_limit, historyLimit, 10, 500))
     transcriptLineLimit = Math.round(configNumber(terminal.transcript_line_limit, transcriptLineLimit, 200, 5000))
     dialStep = configNumber(controls.dial_step, dialStep, 0.01, 0.25)
+    if (accessibility.reduce_motion === true || accessibility.reduce_motion === false)
+      reduceMotion = accessibility.reduce_motion
+    if (audio.mute === true || audio.mute === false) audioMuted = audio.mute
+    paperVolume = configNumber(audio.paper_volume, paperVolume, 0.0, 1.0)
     menuIndex = Math.round(configNumber(launcher.default_cartridge, menuIndex + 1, 1, bundledGames.length)) - 1
   }
 
@@ -184,6 +359,15 @@ Item {
       zork2StoryPath,
       zork3StoryPath
     ])
+    var requestedId = Model.bundledCartridgeId(payload.cartridge || "", [
+      "zork1", "zork2", "zork3", "colossal-cave"
+    ])
+    var requestedCartridge = requested !== "" ? cartridgeForBundledPath(requested) : null
+    if (requestedId === "colossal-cave") requestedCartridge = adventureCartridge
+    else if (requestedId !== "") {
+      for (var cartridgeIndex = 0; cartridgeIndex < bundledGames.length; cartridgeIndex++)
+        if (bundledGames[cartridgeIndex].id === requestedId) requestedCartridge = bundledGames[cartridgeIndex]
+    }
 
     closePending = false
     nativeClosePending = false
@@ -191,32 +375,39 @@ Item {
     if (!windowLoader.active) windowLoader.active = true
     if (!windowStatePrepare.running) windowStatePrepare.running = true
 
-    if (requested !== "" && !frotzProc.running && !startPending) {
-      launchStory(requested)
-    } else if (frotzProc.running || startPending) {
+    if (requestedCartridge && !gameProc.running && !startPending) {
+      launchCartridge(requestedCartridge)
+    } else if (gameProc.running || startPending) {
       viewMode = "game"
     } else {
       viewMode = "menu"
-      statusText = "SELECT STORY"
+      launcherStage = "engines"
+      statusText = "SELECT ENGINE"
     }
   }
 
   function storyActivity() {
-    return frotzProc.running ? "active" : "idle"
+    return gameProc.running ? "active" : "idle"
   }
 
   function returnToMenu() {
     if (viewMode !== "game" || startPending || returningToMenu) return
+    forceMapClosed()
     returningToMenu = true
     statusText = "EJECTING"
-    if (frotzProc.running) frotzProc.running = false
+    if (gameProc.running) gameProc.running = false
     else finishReturnToMenu()
   }
 
-  function finishReturnToMenu() {
+  function finishReturnToMenu(nextStatus, message) {
     returningToMenu = false
+    clearMapSession(currentCartridge !== null)
+    var finishedEngine = currentCartridge ? currentCartridge.engine
+      : pendingCartridge ? pendingCartridge.engine : ""
     storyPath = ""
     pendingStoryPath = ""
+    pendingCartridge = null
+    currentCartridge = null
     transcript = ""
     commandHistory = []
     historyIndex = 0
@@ -224,28 +415,243 @@ Item {
     fileActionCommandRecorded = false
     saveOverwritePending = false
     fileActionMessage = ""
+    importMessage = String(message || "")
     if (window && typeof window.clearCommandInput === "function") window.clearCommandInput()
     viewMode = "menu"
-    statusText = "SELECT STORY"
+    launcherStage = finishedEngine !== "" ? "cartridges" : "engines"
+    statusText = String(nextStatus || (launcherStage === "cartridges" ? "SELECT CARTRIDGE" : "SELECT ENGINE"))
     Qt.callLater(function() { root.focusCurrentView() })
+  }
+
+  function failCartridgeStart(status, message) {
+    startPending = false
+    finishReturnToMenu(status, message)
   }
 
   function focusCurrentView() {
     if (window && typeof window.focusCurrentView === "function") window.focusCurrentView()
   }
 
+  function forceMapClosed() {
+    if (window && typeof window.forceMapClosed === "function") window.forceMapClosed()
+  }
+
+  function toggleMap(userInitiated) {
+    if (window && typeof window.toggleMap === "function") window.toggleMap(userInitiated !== false)
+  }
+
+  function mapModal() {
+    return window && typeof window.mapModal === "function" && window.mapModal()
+  }
+
+  function validMapFingerprint(value) {
+    return /^[a-f0-9]{64}$/.test(String(value || ""))
+  }
+
+  function resetMapMemory() {
+    if (!validMapFingerprint(mapFingerprint) || !currentCartridge || currentCartridge.engine !== "zmachine") return
+    var identity = { engine: "zmachine", sha256: mapFingerprint }
+    var result = AutomapSession.enqueueOperation(mapPersistenceQueue, {
+      op: "reset", engine: identity.engine, sha256: identity.sha256,
+      epoch: mapSessionEpoch, payload: ""
+    })
+    if (!result.accepted) {
+      statusText = "MAP RESET DEFERRED — TRY AGAIN"
+      return
+    }
+    mapWriteDebounce.stop()
+    mapPersistenceQueue = result.queue
+    mapState = Automap.createEmptyState(identity)
+    mapObserverReady = false
+    startNextMapPersistenceOperation()
+  }
+
+  function enqueueMapPersistenceWrite() {
+    if (!validMapFingerprint(mapFingerprint)) return false
+    var payload = ""
+    try { payload = Automap.serializePersistentState(mapState) } catch (error) { return false }
+    var result = AutomapSession.enqueueOperation(mapPersistenceQueue, {
+      op: "write", engine: "zmachine", sha256: mapFingerprint,
+      epoch: mapSessionEpoch, payload: payload
+    })
+    if (!result.accepted) {
+      if (gameProc.running) statusText = "MAP CHECKPOINT DEFERRED"
+      return false
+    }
+    mapPersistenceQueue = result.queue
+    startNextMapPersistenceOperation()
+    return true
+  }
+
+  function startNextMapPersistenceOperation() {
+    if (mapPersistenceProc.running || mapActiveOperation || mapPersistenceQueue.length === 0) return
+    var queue = mapPersistenceQueue.slice(0)
+    var operation = queue.shift()
+    mapPersistenceQueue = queue
+    mapActiveOperation = operation
+    mapPersistenceProc.operation = operation
+    mapPersistenceProc.resultText = ""
+    mapPersistenceProc.command = [mapStateHelper, operation.op, operation.engine, operation.sha256]
+    mapPersistenceProc.stdinEnabled = operation.op === "write"
+    mapPersistenceProc.running = true
+  }
+
+  function finishMapSessionClear() {
+    mapFinalizationPending = false
+    mapSessionEpoch++
+    mapFingerprint = ""
+    mapState = Automap.createEmptyState({ engine: "", sha256: "" })
+    mapCommandQueue = AutomapSession.createCommandQueue(64)
+    mapObserverReady = false
+    mapLastStatus = null
+    mapObserverSuppressed = false
+  }
+
+  function retryPendingMapFinalization() {
+    if (!mapFinalizationPending) return
+    if (!enqueueMapPersistenceWrite()) return
+    finishMapSessionClear()
+  }
+
+  function clearMapSession(persistFinal) {
+    forceMapClosed()
+    mapWriteDebounce.stop()
+    if (persistFinal === true && mapCartridgeSupported && !enqueueMapPersistenceWrite()) {
+      mapFinalizationPending = true
+      startNextMapPersistenceOperation()
+      return false
+    }
+    finishMapSessionClear()
+    return true
+  }
+
+  function beginMapStartup() {
+    mapSessionEpoch++
+    mapFingerprint = ""
+    mapState = Automap.createEmptyState({ engine: "", sha256: "" })
+    mapCommandQueue = AutomapSession.createCommandQueue(64)
+    mapObserverReady = false
+    mapObserverSuppressed = false
+    mapLastStatus = null
+    if (!pendingCartridge || pendingCartridge.engine !== "zmachine") {
+      startPendingCartridge()
+      return
+    }
+    mapFingerprintProc.requestEpoch = mapSessionEpoch
+    mapFingerprintProc.requestPath = pendingStoryPath
+    mapFingerprintProc.resultText = ""
+    mapFingerprintProc.command = [cartridgeHelper, "fingerprint-zmachine", pendingStoryPath]
+    mapFingerprintProc.running = true
+  }
+
+  function continueAfterMapFingerprint(exitCode, resultText, requestEpoch, requestPath) {
+    if (!AutomapSession.startupResultMatches(mapSessionEpoch, pendingStoryPath, requestEpoch, requestPath)) return
+    var fingerprint = String(resultText || "").trim()
+    if (exitCode !== 0 || !validMapFingerprint(fingerprint)) {
+      mapFingerprint = ""
+      startPendingCartridge()
+      return
+    }
+    mapFingerprint = fingerprint
+    if (!mapCartridgeSupported) {
+      startPendingCartridge()
+      return
+    }
+    var readOperation = {
+      op: "read", engine: "zmachine", sha256: fingerprint,
+      epoch: requestEpoch, requestPath: requestPath, payload: ""
+    }
+    var result = AutomapSession.enqueueOperation(mapPersistenceQueue, readOperation)
+    if (!result.accepted) {
+      mapState = Automap.createEmptyState({ engine: "zmachine", sha256: fingerprint })
+      startPendingCartridge()
+      return
+    }
+    mapPersistenceQueue = result.queue
+    startNextMapPersistenceOperation()
+  }
+
+  function continueAfterMapRead(exitCode, resultText, requestEpoch, requestPath, requestFingerprint) {
+    if (!AutomapSession.startupResultMatches(mapSessionEpoch, pendingStoryPath, requestEpoch, requestPath) ||
+        mapFingerprint !== requestFingerprint) return
+    var identity = { engine: "zmachine", sha256: requestFingerprint }
+    var hydrated = null
+    if (exitCode === 0) {
+      try { hydrated = Automap.hydratePersistentState(String(resultText || "")) } catch (error) {}
+    }
+    mapState = hydrated || Automap.createEmptyState(identity)
+    startPendingCartridge()
+  }
+
+  function enqueueMapCommand(command) {
+    if (!currentCartridge || currentCartridge.engine !== "zmachine" ||
+        !mapCartridgeSupported || mapObserverSuppressed) return
+    var next = AutomapSession.enqueueCommand(mapCommandQueue, command)
+    mapCommandQueue = next
+    if (next.suppressed) {
+      mapObserverSuppressed = true
+      try { mapState = Automap.resynchronizeState(mapState) } catch (error) {}
+      forceMapClosed()
+    }
+  }
+
+  function writeGameInput(payload, logicalCommand) {
+    enqueueMapCommand(logicalCommand)
+    gameProc.write(payload)
+  }
+
+  function observeAutomapOutput(raw) {
+    if (!currentCartridge || currentCartridge.engine !== "zmachine" ||
+        !mapCartridgeSupported || mapObserverSuppressed) return
+    var framed = Automap.observeFrotzStatusFrame(raw, mapObserverReady ? "prompt" : "startup")
+    if (!framed) return
+    var consumed = AutomapSession.consumeCommandForFrame(mapCommandQueue, framed.frame)
+    mapCommandQueue = consumed.queue
+    try {
+      if (Automap.statusDiscontinuity(mapLastStatus, framed.observation.status))
+        mapState = Automap.resynchronizeState(mapState)
+      mapLastStatus = framed.observation.status
+      mapState = Automap.reduceTurn(mapState, consumed.command, [framed.observation])
+      mapObserverReady = true
+      mapWriteDebounce.restart()
+    } catch (error) {
+      mapObserverSuppressed = true
+      try { mapState = Automap.resynchronizeState(mapState) } catch (ignored) {}
+      forceMapClosed()
+    }
+  }
+
   function moveMenuSelection(direction) {
-    menuIndex = Model.menuStep(menuIndex, bundledGames.length, direction)
+    menuIndex = Model.menuStep(menuIndex, menuCartridges.length, direction)
   }
 
   function activateMenuSelection() {
-    if (menuIndex < 0 || menuIndex >= bundledGames.length) return
-    launchStory(bundledGames[menuIndex].path)
+    if (menuIndex < 0 || menuIndex >= menuCartridges.length) {
+      statusText = "NO CARTRIDGE SELECTED"
+      return
+    }
+    var cartridge = menuCartridges[menuIndex]
+    if (!cartridge || cartridge.action === "empty") {
+      statusText = "NO CARTRIDGES  /  PRESS I TO IMPORT"
+      importMessage = "SCOTT ADAMS DATABASES MUST BE SUPPLIED BY THE USER"
+      return
+    }
+    if (cartridge.action === "import") beginCartridgeImport()
+    else launchCartridge(cartridge)
   }
 
-  function launchStory(path) {
-    if (frotzProc.running || startPending) return
-    pendingStoryPath = path
+  function launchCartridge(cartridge) {
+    if (!cartridge || gameProc.running || startPending) return
+    if (mapFinalizationPending) {
+      statusText = "FINISHING MAP CHECKPOINT — TRY AGAIN"
+      return
+    }
+    forceMapClosed()
+    for (var index = 0; index < engines.length; index++)
+      if (engines[index].id === cartridge.engine) engineIndex = index
+    launcherStage = "cartridges"
+    pendingCartridge = cartridge
+    pendingStoryPath = String(cartridge.path || "")
     transcript = ""
     commandHistory = []
     historyIndex = 0
@@ -259,8 +665,56 @@ Item {
     prepareDir.running = true
   }
 
+  function launchStory(path) {
+    var cartridge = cartridgeForBundledPath(path)
+    if (cartridge) launchCartridge(cartridge)
+  }
+
+  function saveRootFor(cartridge) {
+    if (!cartridge) return saveRoot
+    if (cartridge.engine === "scottfree") return saveRoot + "/scottfree/" + cartridge.id
+    if (cartridge.engine === "adventure") return saveRoot + "/open-adventure"
+    return saveRoot
+  }
+
+  function preparationCommand(cartridge) {
+    var directories = [dataRoot + "/lantern"]
+    if (cartridge && cartridge.engine === "scottfree") directories.push(stateRoot)
+    else directories.push(saveRoot, saveRootFor(cartridge))
+    return ["mkdir", "-p", "--"].concat(directories)
+  }
+
+  function gameCommand(cartridge) {
+    if (!cartridge) return []
+    if (cartridge.engine === "adventure")
+      return [cartridge.runtime, "-o", "-a", adventureAutosavePath]
+    if (cartridge.engine === "scottfree")
+      return [cartridge.runtime, "--save-root", stateRoot, "--save-key", cartridge.id,
+        "-w", cartridge.path]
+    return [cartridge.runtime, "-q", "-m", "-w", "76", "-R", saveRootFor(cartridge), cartridge.path]
+  }
+
+  function startPendingCartridge() {
+    if (!pendingCartridge) return
+    statusText = "WARMING UP"
+    currentCartridge = pendingCartridge
+    storyPath = pendingStoryPath
+    gameProc.command = gameCommand(pendingCartridge)
+    gameProc.running = true
+    startPending = false
+  }
+
   function close() {
+    forceMapClosed()
     opened = false
+    if (cartridgePicker.running) cartridgePicker.running = false
+    importEngineId = ""
+    importSourcePath = ""
+    importPending = false
+    continueClose()
+  }
+
+  function continueClose() {
     if (nativeClosePending) {
       nativeClosePending = false
       closePending = false
@@ -323,24 +777,39 @@ Item {
   }
 
   function currentStoryId() {
-    for (var i = 0; i < bundledGames.length; i++)
-      if (bundledGames[i].path === storyPath) return bundledGames[i].id
-    return "story"
+    return currentCartridge && currentCartridge.id ? currentCartridge.id : "story"
   }
 
   function defaultSaveName() {
     return currentStoryId() + "-" + Qt.formatDateTime(new Date(), "MMdd-HHmmss")
   }
 
-  function matchingSaveFileName(raw) {
+  function normalizeCurrentSaveName(raw) {
     var stem = Model.normalizeSaveName(raw)
+    return currentCartridge && currentCartridge.saveMode === "scottfree" ? stem.replace(/\s+/g, "-") : stem
+  }
+
+  function matchingSaveFileName(raw) {
+    var stem = normalizeCurrentSaveName(raw)
     if (stem === "") return ""
-    var target = (stem + ".qzl").toLowerCase()
+    var target = (stem + saveExtension).toLowerCase()
     for (var i = 0; i < saveFiles.count; i++) {
       var fileName = String(saveFiles.get(i, "fileName") || "")
       if (fileName.toLowerCase() === target) return fileName
     }
     return ""
+  }
+
+  function refreshSaveFiles() {
+    // FolderListModel cannot watch a directory that did not exist at startup.
+    saveFiles.folder = ""
+    Qt.callLater(function() {
+      saveFiles.folder = Qt.binding(function() { return "file://" + root.currentSaveRoot })
+    })
+  }
+
+  function saveDisplayName(raw) {
+    return String(raw || "").replace(/\.(?:qzl|sav)$/i, "")
   }
 
   function closeFileAction(cancelled) {
@@ -354,19 +823,20 @@ Item {
   }
 
   function beginSave(recorded, requestedName) {
-    if (!frotzProc.running) return
+    if (!gameProc.running || !supportsMemoryBank) return
+    forceMapClosed()
     fileActionMode = "save"
     fileActionCommandRecorded = recorded === true
     saveOverwritePending = false
     fileActionMessage = ""
-    saveDraft = Model.normalizeSaveName(requestedName) || defaultSaveName()
+    saveDraft = normalizeCurrentSaveName(requestedName) || defaultSaveName()
     Qt.callLater(function() { root.focusCurrentView() })
     if (requestedName) completeSave(saveDraft, false)
   }
 
   function completeSave(raw, overwriteConfirmed) {
     if (fileActionMode !== "save") return
-    var stem = Model.normalizeSaveName(raw)
+    var stem = normalizeCurrentSaveName(raw)
     if (stem === "") {
       fileActionMessage = "ENTER A NAME FOR THIS SAVE"
       return
@@ -374,7 +844,7 @@ Item {
 
     var existing = matchingSaveFileName(stem)
     if (existing !== "" && !overwriteConfirmed) {
-      saveDraft = existing.replace(/\.qzl$/i, "")
+      saveDraft = saveDisplayName(existing)
       saveOverwritePending = true
       fileActionMessage = "SAVE EXISTS — ENTER TO OVERWRITE"
       Qt.callLater(function() { root.focusCurrentView() })
@@ -382,14 +852,18 @@ Item {
     }
 
     if (!fileActionCommandRecorded) rememberCommand("SAVE")
-    var fileName = existing !== "" ? existing : stem + ".qzl"
+    if (existing !== "") stem = saveDisplayName(existing)
+    var fileName = existing !== "" ? existing : stem + saveExtension
     transcript = Model.appendTranscript(transcript, "[SAVING  " + fileName + "]", transcriptLineLimit)
     closeFileAction(false)
-    frotzProc.write("save\n" + stem + "\n" + (existing !== "" ? "y\n" : ""))
+    if (currentCartridge.saveMode === "scottfree") gameProc.write("save\n" + stem + "\n")
+    else writeGameInput("save\n" + stem + "\n" + (existing !== "" ? "y\n" : ""), "save")
+    saveLibraryRefresh.restart()
   }
 
   function beginLoad(recorded, requestedName) {
-    if (!frotzProc.running) return
+    if (!gameProc.running || !supportsMemoryBank) return
+    forceMapClosed()
     fileActionMode = "load"
     fileActionCommandRecorded = recorded === true
     fileActionMessage = ""
@@ -420,7 +894,7 @@ Item {
 
   function completeLoad(raw) {
     if (fileActionMode !== "load") return
-    var existing = matchingSaveFileName(String(raw || "").replace(/\.qzl$/i, ""))
+    var existing = matchingSaveFileName(saveDisplayName(raw))
     if (existing === "") {
       fileActionMessage = "SAVE FILE IS NO LONGER AVAILABLE"
       return
@@ -428,14 +902,14 @@ Item {
     if (!fileActionCommandRecorded) rememberCommand("RESTORE")
     transcript = Model.appendTranscript(transcript, "[LOADING  " + existing + "]", transcriptLineLimit)
     closeFileAction(false)
-    frotzProc.write("restore\n" + existing + "\n")
+    writeGameInput("restore\n" + existing + "\n", "restore")
   }
 
   function submitCommand(raw) {
     var command = Model.normalizeCommand(raw)
-    if (command === "" || !frotzProc.running || fileActionMode !== "") return
+    if (command === "" || !gameProc.running || fileActionMode !== "") return
 
-    var fileCommand = command.match(/^(save|restore|load)(?:\s+(.+))?$/i)
+    var fileCommand = supportsMemoryBank ? command.match(/^(save|restore|load)(?:\s+(.+))?$/i) : null
     if (fileCommand) {
       rememberCommand(command)
       if (fileCommand[1].toLowerCase() === "save") beginSave(true, fileCommand[2] || "")
@@ -444,7 +918,7 @@ Item {
     }
 
     rememberCommand(command)
-    frotzProc.write(command + "\n")
+    writeGameInput(command + "\n", command)
   }
 
   function stepHistory(direction) {
@@ -455,15 +929,121 @@ Item {
 
   FolderListModel {
     id: saveFiles
-    folder: "file://" + root.saveRoot
-    nameFilters: ["*.qzl"]
+    folder: "file://" + root.currentSaveRoot
+    nameFilters: ["*" + root.saveExtension]
     sortField: FolderListModel.Time
-    sortReversed: false
+    sortReversed: true
     showFiles: true
     showDirs: false
     showDotAndDotDot: false
     showHidden: false
     showOnlyReadable: true
+  }
+
+  FolderListModel {
+    id: importedStories
+    folder: "file://" + root.cartridgeRoot
+    nameFilters: ["*.z1", "*.z2", "*.z3", "*.z4", "*.z5", "*.z6", "*.z7", "*.z8"]
+    sortField: FolderListModel.Name
+    showFiles: true
+    showDirs: false
+    showDotAndDotDot: false
+    showHidden: false
+    showOnlyReadable: true
+    onCountChanged: root.selectImportedFile()
+  }
+
+  FolderListModel {
+    id: importedScottStories
+    folder: "file://" + root.cartridgeRoot
+    nameFilters: ["*.dat"]
+    sortField: FolderListModel.Name
+    showFiles: true
+    showDirs: false
+    showDotAndDotDot: false
+    showHidden: false
+    showOnlyReadable: true
+    onCountChanged: root.selectImportedFile()
+  }
+
+  Process {
+    id: cartridgePicker
+    property string resultText: ""
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: cartridgePicker.resultText = text
+    }
+    onExited: function(exitCode) {
+      if (!root.opened) return
+      if (exitCode !== 0) {
+        root.importEngineId = ""
+        root.importSourcePath = ""
+        root.importPending = false
+        root.statusText = "SELECT CARTRIDGE"
+        Qt.callLater(function() { root.focusCurrentView() })
+        return
+      }
+      var path = String(resultText || "").replace(/[\r\n]+$/, "")
+      if (!/^\/[^\r\n\u0000]+$/.test(path)) {
+        root.statusText = "IMPORT REJECTED"
+        root.importMessage = "SELECT A LOCAL CARTRIDGE FILE"
+        Qt.callLater(function() { root.focusCurrentView() })
+        return
+      }
+      root.importSourcePath = path
+      root.importPending = true
+      root.statusText = "FILING CARTRIDGE"
+      importPrepareDir.running = true
+    }
+  }
+
+  Process {
+    id: importPrepareDir
+    command: ["mkdir", "-p", "--", root.dataRoot + "/lantern"]
+    onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        root.importPending = false
+        root.statusText = "STORAGE ERROR"
+        root.importMessage = "CARTRIDGE LIBRARY COULD NOT BE PREPARED"
+        return
+      }
+      cartridgeImport.command = [root.cartridgeHelper,
+        root.importEngineId === "scottfree" ? "import-scott" : "import-zmachine",
+        root.importSourcePath, root.cartridgeRoot]
+      cartridgeImport.running = true
+    }
+  }
+
+  Process {
+    id: cartridgeImport
+    property string resultText: ""
+    stdinEnabled: false
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: cartridgeImport.resultText = text
+    }
+    stderr: StdioCollector {
+      id: cartridgeImportErrors
+      waitForEnd: true
+    }
+    onExited: function(exitCode) {
+      root.importPending = false
+      root.importSourcePath = ""
+      if (exitCode !== 0) {
+        root.statusText = "IMPORT REJECTED"
+        root.importMessage = Model.cleanOutput(cartridgeImportErrors.text) || "HEADER CHECK FAILED — FILE WAS NOT COPIED"
+        root.importEngineId = ""
+        Qt.callLater(function() { root.focusCurrentView() })
+        return
+      }
+      root.importedFileName = String(resultText || "").trim()
+      root.importMessage = ""
+      root.statusText = "CARTRIDGE READY"
+      var importedModel = root.importEngineId === "scottfree" ? importedScottStories : importedStories
+      importedModel.folder = ""
+      importedModel.folder = "file://" + root.cartridgeRoot
+      Qt.callLater(root.selectImportedFile)
+    }
   }
 
   Process {
@@ -623,15 +1203,14 @@ Item {
 
   Process {
     id: prepareDir
-    command: ["mkdir", "-p", "--", root.saveRoot]
+    command: root.preparationCommand(root.pendingCartridge)
     onExited: function(exitCode) {
       if (exitCode !== 0) {
-        root.startPending = false
-        root.statusText = "STORAGE ERROR"
-        root.appendOutput("Lantern could not prepare its game and save directories.")
+        root.failCartridgeStart("STORAGE ERROR", "GAME AND SAVE DIRECTORIES COULD NOT BE PREPARED")
         return
       }
-      runtimeCheck.command = ["test", "-x", root.runtimePath]
+      root.refreshSaveFiles()
+      runtimeCheck.command = ["test", "-x", root.pendingCartridge.runtime]
       runtimeCheck.running = true
     }
   }
@@ -640,12 +1219,18 @@ Item {
     id: runtimeCheck
     onExited: function(exitCode) {
       if (exitCode !== 0) {
-        root.startPending = false
-        root.statusText = "RUNTIME ERROR"
-        root.appendOutput("Lantern's bundled x86-64 dfrotz runtime is missing or not executable. Reinstall the plugin from its official repository.")
+        root.failCartridgeStart("RUNTIME ERROR", "SELECTED ENGINE IS MISSING — REINSTALL LANTERN")
         return
       }
-      storyCheck.command = ["test", "-f", root.pendingStoryPath]
+      if (root.pendingCartridge.engine === "adventure") {
+        root.startPendingCartridge()
+        return
+      }
+      storyCheck.command = root.pendingCartridge.source === "imported"
+        ? [root.cartridgeHelper,
+          root.pendingCartridge.engine === "scottfree" ? "check-scott" : "check-zmachine",
+          root.pendingStoryPath, root.cartridgeRoot]
+        : ["test", "-f", root.pendingStoryPath]
       storyCheck.running = true
     }
   }
@@ -654,24 +1239,78 @@ Item {
     id: storyCheck
     onExited: function(exitCode) {
       if (exitCode !== 0) {
-        root.startPending = false
-        root.statusText = "NO STORY"
-        root.appendOutput("The selected bundled story is not a regular file. Reinstall Lantern to restore the bundled Zork trilogy.")
+        root.failCartridgeStart("NO CARTRIDGE", "CARTRIDGE IS UNAVAILABLE OR FAILED ITS FORMAT CHECK")
         return
       }
-      root.statusText = "WARMING UP"
-      root.storyPath = root.pendingStoryPath
-      frotzProc.command = [root.runtimePath, "-q", "-m", "-w", "76", "-R", root.saveRoot, root.pendingStoryPath]
-      frotzProc.running = true
-      root.startPending = false
+      root.beginMapStartup()
     }
   }
 
   Process {
-    id: frotzProc
+    id: mapFingerprintProc
+    property int requestEpoch: 0
+    property string requestPath: ""
+    property string resultText: ""
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: mapFingerprintProc.resultText = text
+    }
+    onExited: function(exitCode) {
+      root.continueAfterMapFingerprint(exitCode, resultText, requestEpoch, requestPath)
+    }
+  }
+
+  Process {
+    id: mapPersistenceProc
+    property var operation: null
+    property string resultText: ""
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: mapPersistenceProc.resultText = text
+    }
+    onStarted: {
+      if (operation && operation.op === "write") {
+        write(operation.payload)
+        stdinEnabled = false
+      }
+    }
+    onExited: function(exitCode) {
+      var completed = operation
+      var output = resultText
+      root.mapActiveOperation = null
+      operation = null
+      resultText = ""
+      if (completed && completed.op === "read")
+        root.continueAfterMapRead(exitCode, output, completed.epoch, completed.requestPath, completed.sha256)
+      else if (completed && exitCode !== 0 && completed.epoch === root.mapSessionEpoch)
+        root.statusText = "MAP STORAGE ERROR — CHECK STATE DIRECTORY PERMISSIONS"
+      root.startNextMapPersistenceOperation()
+      root.retryPendingMapFinalization()
+    }
+  }
+
+  Timer {
+    id: saveLibraryRefresh
+    interval: 250
+    repeat: false
+    onTriggered: root.refreshSaveFiles()
+  }
+
+  Timer {
+    id: mapWriteDebounce
+    interval: 750
+    repeat: false
+    onTriggered: root.enqueueMapPersistenceWrite()
+  }
+
+  Process {
+    id: gameProc
     stdinEnabled: true
     stdout: SplitParser {
-      onRead: function(line) { root.appendOutput(line) }
+      onRead: function(line) {
+        root.observeAutomapOutput(line)
+        root.appendOutput(line)
+      }
     }
     stderr: StdioCollector {
       waitForEnd: true
@@ -682,7 +1321,7 @@ Item {
     }
     onStarted: {
       root.viewMode = "game"
-      root.statusText = "ONLINE"
+      root.statusText = root.currentCartridge && root.currentCartridge.saveMode === "autosave" ? "ONLINE  /  AUTO MEMORY" : "ONLINE"
       Qt.callLater(function() {
         if (root.opened && window && window.visible) root.focusCurrentView()
       })
@@ -692,10 +1331,18 @@ Item {
         root.finishReturnToMenu()
         return
       }
-      root.statusText = exitCode === 0 ? "SESSION ENDED" : "FROTZ UNAVAILABLE"
-      if (exitCode !== 0)
-        root.appendOutput("Lantern's bundled dfrotz runtime could not be started. This release supports x86-64 glibc Linux systems.")
+      root.finishReturnToMenu(
+        exitCode === 0 ? "SESSION ENDED" : "ENGINE STOPPED",
+        exitCode === 0 ? "CARTRIDGE SESSION ENDED" : "ENGINE STOPPED UNEXPECTEDLY"
+      )
     }
+  }
+
+  PaperSound {
+    id: paperSound
+    muted: root.audioMuted
+    reduceMotion: root.reduceMotion
+    volume: root.paperVolume
   }
 
   Loader {
@@ -707,16 +1354,29 @@ Item {
         id: window
     title: "Lantern — Interactive Fiction Terminal"
     visible: false
-    color: "#141512"
+    color: "#ff141512"
     implicitWidth: Math.round(root.baseWindowWidth * root.windowScale)
     implicitHeight: Math.round(root.baseWindowHeight * root.windowScale)
     minimumSize: Qt.size(implicitWidth, implicitHeight)
     maximumSize: Qt.size(implicitWidth, implicitHeight)
 
     function focusCurrentView() {
-      if (root.viewMode === "menu") launcherScreen.forceActiveFocus()
-      else if (root.fileActionMode !== "") saveLoadOverlay.focusCurrent()
+      if (mapOverlay.modal) mapOverlay.focusCurrent()
+      else if (root.viewMode === "menu") {
+        if (root.launcherStage === "engines") engineMenu.focusCurrent()
+        else cartridgeMenu.focusCurrent()
+      } else if (root.fileActionMode !== "") saveLoadOverlay.focusCurrent()
       else commandInput.forceActiveFocus()
+    }
+
+    function forceMapClosed() { mapOverlay.forceClosed() }
+    function toggleMap(userInitiated) { mapOverlay.toggleMap(userInitiated !== false) }
+    function mapModal() { return mapOverlay.modal }
+    function restoreMapFocus(priorItem) {
+      if (!visible) return
+      if (priorItem && priorItem.visible === true && priorItem.enabled === true &&
+          typeof priorItem.forceActiveFocus === "function") priorItem.forceActiveFocus()
+      else focusCurrentView()
     }
 
     function clearCommandInput() {
@@ -732,7 +1392,15 @@ Item {
       transcriptView.contentY = Math.max(0, transcriptText.height - transcriptView.height)
     }
 
+    Shortcut {
+      sequence: "Ctrl+P"
+      autoRepeat: false
+      enabled: root.viewMode === "game" && mapOverlay.motionState === "closed"
+      onActivated: root.toggleMap(true)
+    }
+
     onClosed: {
+      root.forceMapClosed()
       if (root.opened && !root.closingFromHost) {
         root.nativeClosePending = true
         root.requestClose()
@@ -740,6 +1408,7 @@ Item {
     }
 
     onVisibleChanged: {
+      if (!visible) root.forceMapClosed()
       if (!visible && root.opened && !root.closingFromHost) root.requestClose()
     }
 
@@ -749,7 +1418,8 @@ Item {
       height: root.baseWindowHeight
       transformOrigin: Item.TopLeft
       scale: root.windowScale
-      color: "#141512"
+      opacity: 1.0
+      color: "#ff141512"
 
       Rectangle {
         id: bezel
@@ -775,7 +1445,7 @@ Item {
           anchors.leftMargin: 30
           anchors.top: parent.top
           anchors.topMargin: 16
-          text: "LANTERN  //  Z-MACHINE TERMINAL"
+          text: "LANTERN  //  MULTI-ENGINE TERMINAL"
           color: "#8c8978"
           font.family: "monospace"
           font.pixelSize: 10
@@ -790,7 +1460,7 @@ Item {
           anchors.top: parent.top
           anchors.topMargin: 16
           text: root.statusText
-          color: root.statusText === "ONLINE" ? root.phosphorDim : "#8c8978"
+          color: gameProc.running ? root.phosphorDim : "#8c8978"
           font.family: "monospace"
           font.pixelSize: 10
           font.bold: true
@@ -921,7 +1591,7 @@ Item {
                 font.pixelSize: 18
                 font.letterSpacing: 0.3
                 activeFocusOnTab: true
-                enabled: frotzProc.running && root.fileActionMode === ""
+                enabled: gameProc.running && root.fileActionMode === "" && !root.mapModal()
                 clip: true
                 onAccepted: root.submitCommand(commandInput.text)
                 Keys.onEscapePressed: function(event) { root.requestClose(); event.accepted = true }
@@ -956,18 +1626,25 @@ Item {
                 spacing: 6
 
                 Repeater {
-                  model: [{ label: "SAVE  ^S", action: "save" },
+                  model: [{ label: root.mapAvailable ? "MAP  ^P" : "MAP  --", action: "map" },
+                    { label: "SAVE  ^S", action: "save" },
                     { label: "LOAD  ^L", action: "load" },
                     { label: "MENU  ^M", action: "menu" }]
 
                   delegate: Rectangle {
+                    id: actionButton
                     required property var modelData
+                    readonly property bool baseAvailable: gameProc.running && !root.returningToMenu &&
+                      root.fileActionMode === "" && !root.mapModal()
+                    readonly property bool available: baseAvailable &&
+                      (modelData.action === "map" ? root.mapAvailable
+                        : modelData.action === "menu" || root.supportsMemoryBank)
                     width: 74
                     height: 25
                     color: "transparent"
                     border.width: 1
                     border.color: root.phosphorDim
-                    opacity: frotzProc.running && !root.returningToMenu && root.fileActionMode === "" ? 0.88 : 0.35
+                    opacity: available ? 0.88 : 0.35
 
                     Text {
                       anchors.centerIn: parent
@@ -981,16 +1658,21 @@ Item {
                     }
 
                     HoverHandler {
-                      enabled: frotzProc.running && !root.returningToMenu && root.fileActionMode === ""
-                      cursorShape: Qt.PointingHandCursor
+                      id: mapButtonHover
+                      enabled: actionButton.available || (actionButton.modelData.action === "map" && actionButton.baseAvailable)
+                      cursorShape: actionButton.available ? Qt.PointingHandCursor : Qt.WhatsThisCursor
                     }
 
+                    ToolTip.visible: actionButton.modelData.action === "map" && mapButtonHover.hovered && !root.mapAvailable
+                    ToolTip.text: root.mapUnavailableReason
+
                     TapHandler {
-                      enabled: frotzProc.running && !root.returningToMenu && root.fileActionMode === ""
+                      enabled: actionButton.available
                       acceptedButtons: Qt.LeftButton
                       onTapped: {
-                        if (parent.modelData.action === "save") root.beginSave(false, "")
-                        else if (parent.modelData.action === "load") root.beginLoad(false, "")
+                        if (actionButton.modelData.action === "map") root.toggleMap(true)
+                        else if (actionButton.modelData.action === "save") root.beginSave(false, "")
+                        else if (actionButton.modelData.action === "load") root.beginLoad(false, "")
                         else root.returnToMenu()
                       }
                     }
@@ -1009,155 +1691,20 @@ Item {
             }
           }
 
-            FocusScope {
-              id: launcherScreen
+            EngineMenu {
+              id: engineMenu
               anchors.fill: parent
-              visible: root.viewMode === "menu"
+              visible: root.viewMode === "menu" && root.launcherStage === "engines"
               focus: visible
+              controller: root
+            }
 
-              Keys.onUpPressed: function(event) {
-                root.moveMenuSelection(-1)
-                event.accepted = true
-              }
-              Keys.onDownPressed: function(event) {
-                root.moveMenuSelection(1)
-                event.accepted = true
-              }
-              Keys.onReturnPressed: function(event) {
-                root.activateMenuSelection()
-                event.accepted = true
-              }
-              Keys.onEnterPressed: function(event) {
-                root.activateMenuSelection()
-                event.accepted = true
-              }
-              Keys.onEscapePressed: function(event) {
-                root.requestClose()
-                event.accepted = true
-              }
-              Keys.onPressed: function(event) {
-                if (event.key < Qt.Key_1 || event.key > Qt.Key_9) return
-                var selected = event.key - Qt.Key_1
-                if (selected >= root.bundledGames.length) return
-                root.menuIndex = selected
-                root.activateMenuSelection()
-                event.accepted = true
-              }
-
-              Column {
-                anchors.centerIn: parent
-                width: parent.width - 150
-                spacing: 18
-
-                Text {
-                  anchors.horizontalCenter: parent.horizontalCenter
-                  text: root.lanternLogo
-                  color: root.phosphorColor
-                  font.family: "monospace"
-                  font.pixelSize: 18
-                  font.bold: true
-                  font.letterSpacing: 0.4
-                  lineHeight: 1.0
-                  horizontalAlignment: Text.AlignHCenter
-                  textFormat: Text.PlainText
-                }
-
-                Text {
-                  anchors.horizontalCenter: parent.horizontalCenter
-                  text: "Z-MACHINE STORY TERMINAL  //  SELECT A CARTRIDGE"
-                  color: root.phosphorDim
-                  font.family: "monospace"
-                  font.pixelSize: 12
-                  font.bold: true
-                  font.letterSpacing: 1.4
-                  textFormat: Text.PlainText
-                }
-
-                Rectangle {
-                  width: parent.width
-                  height: 1
-                  color: root.phosphorDim
-                  opacity: 0.55
-                }
-
-                Column {
-                  width: parent.width
-                  spacing: 8
-
-                  Repeater {
-                    model: root.bundledGames
-
-                    delegate: Rectangle {
-                      required property int index
-                      required property var modelData
-                      readonly property bool selected: index === root.menuIndex
-                      width: parent.width
-                      height: 76
-                      color: selected ? Qt.rgba(root.phosphorColor.r, root.phosphorColor.g, root.phosphorColor.b, 0.09) : "transparent"
-                      border.width: 1
-                      border.color: selected ? root.phosphorDim : Qt.rgba(root.phosphorColor.r, root.phosphorColor.g, root.phosphorColor.b, 0.16)
-
-                      Text {
-                        anchors.left: parent.left
-                        anchors.leftMargin: 18
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: parent.selected ? ">" : " "
-                        color: root.phosphorColor
-                        font.family: "monospace"
-                        font.pixelSize: 18
-                        font.bold: true
-                        textFormat: Text.PlainText
-                      }
-
-                      Text {
-                        anchors.left: parent.left
-                        anchors.leftMargin: 52
-                        anchors.top: parent.top
-                        anchors.topMargin: 14
-                        text: "[ " + parent.modelData.number + " ]  " + parent.modelData.title
-                        color: root.phosphorColor
-                        font.family: "monospace"
-                        font.pixelSize: 18
-                        font.bold: true
-                        font.letterSpacing: 0.5
-                        textFormat: Text.PlainText
-                      }
-
-                      Text {
-                        anchors.left: parent.left
-                        anchors.leftMargin: 52
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 13
-                        text: parent.modelData.subtitle
-                        color: root.phosphorDim
-                        font.family: "monospace"
-                        font.pixelSize: 12
-                        font.letterSpacing: 0.6
-                        textFormat: Text.PlainText
-                      }
-
-                      TapHandler {
-                        acceptedButtons: Qt.LeftButton
-                        onTapped: {
-                          root.menuIndex = parent.index
-                          root.activateMenuSelection()
-                        }
-                      }
-                    }
-                  }
-                }
-
-                Text {
-                  anchors.horizontalCenter: parent.horizontalCenter
-                  text: "UP/DOWN  SELECT    ENTER  BOOT    1-3  QUICK START"
-                  color: root.phosphorDim
-                  font.family: "monospace"
-                  font.pixelSize: 11
-                  font.bold: true
-                  font.letterSpacing: 0.8
-                  textFormat: Text.PlainText
-                }
-              }
+            CartridgeMenu {
+              id: cartridgeMenu
+              anchors.fill: parent
+              visible: root.viewMode === "menu" && root.launcherStage === "cartridges"
+              focus: visible
+              controller: root
             }
           }
 
@@ -1649,10 +2196,10 @@ Item {
             radius: 5
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            color: frotzProc.running ? root.phosphorColor : "#413f37"
+            color: gameProc.running ? root.phosphorColor : "#413f37"
             border.width: 1
-            border.color: frotzProc.running ? root.phosphorDim : "#24251f"
-            opacity: frotzProc.running ? 0.82 : 0.55
+            border.color: gameProc.running ? root.phosphorDim : "#24251f"
+            opacity: gameProc.running ? 0.82 : 0.55
 
             Rectangle {
               width: 3
@@ -1663,7 +2210,7 @@ Item {
               anchors.top: parent.top
               anchors.topMargin: 2
               color: "#ffffff"
-              opacity: frotzProc.running ? 0.55 : 0.12
+              opacity: gameProc.running ? 0.55 : 0.12
             }
           }
 
@@ -1674,8 +2221,8 @@ Item {
             spacing: 1
 
             Text {
-              text: frotzProc.running ? "SIGNAL" : "STANDBY"
-              color: frotzProc.running ? "#aaa694" : "#6c6a5e"
+              text: gameProc.running ? "SIGNAL" : "STANDBY"
+              color: gameProc.running ? "#aaa694" : "#6c6a5e"
               font.family: "monospace"
               font.pixelSize: 8
               font.bold: true
@@ -1684,13 +2231,53 @@ Item {
             }
 
             Text {
-              text: frotzProc.running ? "LOCKED" : "READY"
+              text: gameProc.running ? "LOCKED" : "READY"
               color: "#56554b"
               font.family: "monospace"
               font.pixelSize: 7
               font.letterSpacing: 0.6
               textFormat: Text.PlainText
             }
+          }
+        }
+      }
+
+      MapOverlay {
+        id: mapOverlay
+        mapState: root.mapState
+        currentNodeId: root.mapState && root.mapState.currentNodeId ? String(root.mapState.currentNodeId) : ""
+        sessionKey: root.mapSessionKey
+        mapTitle: root.currentCartridge ? String(root.currentCartridge.title || "EXPLORER'S FIELD MAP") : "EXPLORER'S FIELD MAP"
+        available: root.mapAvailable
+        unavailableReason: root.mapUnavailableReason
+        reduceMotion: root.reduceMotion
+        resetEnabled: root.mapAvailable
+        renderScale: root.windowScale
+        crtRect: Qt.rect(46, 60, 928, 617)
+        dragStripHeight: 42
+        z: 100
+        onTransitionSoundRequested: function(kind) { paperSound.request(kind) }
+        onClosed: paperSound.stop()
+        onResetMapRequested: root.resetMapMemory()
+        onUnavailableActivated: function(reason) { root.statusText = String(reason || root.mapUnavailableReason) }
+        onFocusRestoreRequested: function(priorItem) { window.restoreMapFocus(priorItem) }
+      }
+
+      Item {
+        id: topDragHandle
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: 42
+        z: 120
+
+        HoverHandler { cursorShape: Qt.SizeAllCursor }
+        DragHandler {
+          target: null
+          acceptedButtons: Qt.LeftButton
+          onActiveChanged: {
+            if (active) window.startSystemMove()
+            else root.checkpointWindowPosition()
           }
         }
       }

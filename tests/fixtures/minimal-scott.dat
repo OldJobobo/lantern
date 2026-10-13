@@ -1,0 +1,27 @@
+0 9 1 6 1 4 1 0 3 -1 0 0
+0 0 0 0 0 0 0 0
+900 0 0 0 0 0 10650 0
+"" ""
+"GO" "NORTH"
+"GET" "SOUTH"
+"DROP" "EAST"
+"LOOK" "WEST"
+"INVENTORY" "UP"
+"SAVE" "DOWN"
+0 0 0 0 0 0 "Nowhere"
+0 0 0 0 0 0 "*Lantern Test Chamber"
+""
+"brass token/TOKEN/" 1
+"unused one" 0
+"unused two" 0
+"unused three" 0
+"unused four" 0
+"unused five" 0
+"unused six" 0
+"unused seven" 0
+"unused eight" 0
+"lamp/LAMP/" 0
+"Lantern synthetic compatibility fixture"
+"Save command fixture"
+114
+0

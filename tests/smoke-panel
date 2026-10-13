@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Exercise the real Panel with Quickshell, isolated from user state and Hyprland.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+fixture="$(mktemp -d "$root/.test-panel-XXXXXX")"
+harness="$(mktemp "$root/.release-harness-XXXXXX.qml")"
+trap 'rm -rf -- "$fixture"; rm -f -- "$harness"' EXIT
+mkdir -p "$fixture"/{runtime,state,data,config,cache}
+chmod 0700 "$fixture/runtime"
+mkdir -p "$fixture/data/lantern"
+./bin/lantern-cartridge import-scott tests/fixtures/minimal-scott.dat "$fixture/data/lantern/cartridges" >/dev/null
+python3 - "$harness" <<'PY'
+from pathlib import Path
+import sys
+source = Path('tests/manual/ReleaseHarness.qml').read_text()
+Path(sys.argv[1]).write_text(source.replace('import "../.." as Lantern', 'import "." as Lantern'))
+PY
+platform="${LANTERN_QPA_PLATFORM:-offscreen}"
+wayland_display=""
+if [[ "$platform" == wayland ]]; then
+  wayland_display="${WAYLAND_DISPLAY:?Wayland display required}"
+  [[ "$wayland_display" == /* ]] || wayland_display="${XDG_RUNTIME_DIR:?}/$wayland_display"
+fi
+env -u DISPLAY WAYLAND_DISPLAY="$wayland_display" QT_QPA_PLATFORM="$platform" QT_QPA_PLATFORMTHEME= QT_STYLE_OVERRIDE=Fusion \
+  XDG_RUNTIME_DIR="$fixture/runtime" XDG_STATE_HOME="$fixture/state" \
+  XDG_DATA_HOME="$fixture/data" XDG_CONFIG_HOME="$fixture/config" \
+  XDG_CACHE_HOME="$fixture/cache" HYPRCTL_BIN=/usr/bin/false \
+  timeout 25 quickshell --no-color -p "$harness" > "$fixture/panel.log" 2>&1 || {
+    printf '%s\n' 'Quickshell panel smoke failed:'
+    tail -40 "$fixture/panel.log"
+    exit 1
+  }
+if ! grep -q LANTERN_HARNESS_PASS "$fixture/panel.log" || grep -q LANTERN_HARNESS_FAIL "$fixture/panel.log"; then
+  tail -40 "$fixture/panel.log"
+  exit 1
+fi
+for save in harness.qzl open-adventure/colossal-cave-1.22.sav scottfree/minimal-scott/harness.sav; do
+  if [[ ! -s "$fixture/state/lantern/saves/$save" ]]; then
+    printf 'Missing save artifact: %s\n' "$save"
+    tail -40 "$fixture/panel.log"
+    exit 1
+  fi
+done
+printf '%s\n' 'Real Quickshell Panel: all engines, saves, map modality, persistence, restart, and unsupported cartridge smoke passed.'

@@ -1,0 +1,11 @@
+# Archive downloads exclude local coordination, tests, and design-only assets.
+.hermes/ export-ignore
+.pi/ export-ignore
+.worktrees/ export-ignore
+tests/ export-ignore
+assets/map-concept-closed.png export-ignore
+assets/map-concept-open.png export-ignore
+assets/zork-rough-map.png export-ignore
+assets/zork-rough-map.svg export-ignore
+assets/old-graph-paper.svg export-ignore
+assets/lantern-logo-rc1.png export-ignore

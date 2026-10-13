@@ -2,8 +2,6 @@ import QtQuick
 import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
-import qs.Commons
-import qs.Ui
 import "Model.js" as Model
 
 // Static launcher only. The persistent panel remains the single owner of the

@@ -1,2 +1,6 @@
 .DS_Store
 *.qmlc
+.pi/
+.worktrees/
+.test-*/
+.release-harness-*.qml

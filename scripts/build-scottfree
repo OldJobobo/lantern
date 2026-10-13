@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+output="${1:-$root/runtime/x86_64-linux/scottfree}"
+archive="$root/third_party/scottfree/source/scottfree-glk-b69a8498.tar.gz"
+safety_patch="$root/third_party/scottfree/lantern-safety.patch"
+adapter="$root/third_party/scottfree/stdio-glk"
+image="gcc:14.2.0-bookworm@sha256:82549aa8f90ada3236a8be70c74543132a76662ef33f0c3271ed802b81584a82"
+build_root="$(mktemp -d "$root/.build-scottfree.XXXXXX")"
+trap 'rm -rf "$build_root"' EXIT
+
+tar -xzf "$archive" -C "$build_root" --strip-components=1
+patch --quiet --directory "$build_root" --strip=0 < "$safety_patch"
+cp "$adapter/glk.h" "$adapter/glkstart.h" "$adapter/stdio-glk.c" "$build_root/"
+
+mkdir -p "$(dirname "$output")"
+output_dir="$(cd "$(dirname "$output")" && pwd)"
+output_name="$(basename "$output")"
+temporary_name=".${output_name}.tmp.$$"
+trap 'rm -rf "$build_root"; rm -f "$output_dir/$temporary_name"' EXIT
+
+docker run --rm --platform linux/amd64 \
+  --user "$(id -u):$(id -g)" \
+  --volume "$build_root:/src:ro" \
+  --volume "$output_dir:/out" \
+  --workdir /src \
+  --env SOURCE_DATE_EPOCH=0 \
+  "$image" \
+  gcc -std=c11 -O2 -Wall -Wextra -D_FORTIFY_SOURCE=2 \
+    -fstack-protector-strong -fPIE -pie -Wl,--build-id=none,-z,relro,-z,now -s \
+    -I. -o "/out/$temporary_name" scott.c bsd.c stdio-glk.c
+
+chmod 0755 "$output_dir/$temporary_name"
+mv -f "$output_dir/$temporary_name" "$output_dir/$output_name"

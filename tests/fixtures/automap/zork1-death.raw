@@ -1,0 +1,103 @@
+ West of House                                Score: 0        Moves: 0
+
+ZORK I: The Great Underground Empire
+Infocom interactive fiction - a fantasy story
+Copyright (c) 1981, 1982, 1983, 1984, 1985, 1986 Infocom, Inc. All rights
+reserved.
+ZORK is a registered trademark of Infocom, Inc.
+Release 119 / Serial number 880429
+
+West of House
+You are standing in an open field west of a white house, with a boarded
+front door.
+There is a small mailbox here.
+
+> North of House                               Score: 0        Moves: 1
+
+North of House
+You are facing the north side of a white house. There is no door here, and
+all the windows are boarded up. To the north a narrow path winds through the
+trees.
+
+> Behind House                                 Score: 0        Moves: 2
+
+Behind House
+You are behind the white house. A path leads into the forest to the east. In
+one corner of the house there is a small window which is slightly ajar.
+
+> Behind House                                 Score: 0        Moves: 3
+
+With great effort, you open the window far enough to allow entry.
+
+> Kitchen                                      Score: 10       Moves: 4
+
+Kitchen
+You are in the kitchen of the white house. A table seems to have been used
+recently for the preparation of food. A passage leads to the west and a dark
+staircase can be seen leading upward. A dark chimney leads down and to the
+east is a small window which is open.
+A bottle is sitting on the table.
+The glass bottle contains:
+  A quantity of water
+On the table is an elongated brown sack, smelling of hot peppers.
+
+> Living Room                                  Score: 10       Moves: 5
+
+Living Room
+You are in the living room. There is a doorway to the east, a wooden door
+with strange gothic lettering to the west, which appears to be nailed shut,
+a trophy case, and a large oriental rug in the center of the room.
+Above the trophy case hangs an elvish sword of great antiquity.
+A battery-powered brass lantern is on the trophy case.
+
+> Living Room                                  Score: 10       Moves: 6
+
+With a great effort, the rug is moved to one side of the room, revealing the
+dusty cover of a closed trap door.
+
+> Living Room                                  Score: 10       Moves: 7
+
+The door reluctantly opens to reveal a rickety staircase descending into
+darkness.
+
+> Cellar                                       Score: 35       Moves: 8
+
+You have moved into a dark place.
+The trap door crashes shut, and you hear someone barring it.
+
+It is pitch black. You are likely to be eaten by a grue.
+
+> The Troll Room                               Score: 35       Moves: 9
+
+You have moved into a dark place.
+It is pitch black. You are likely to be eaten by a grue.
+
+> Forest                                       Score: 25       Moves: 10
+
+Oh, no! You have walked into the slavering fangs of a lurking grue!
+
+    ****  You have died  ****
+
+Now, let's take a look here... Well, you probably deserve another chance. I
+can't quite fix you up completely, but you can't have everything.
+
+Forest
+This is a forest, with trees in all directions. To the east, there appears
+to be sunlight.
+
+> Clearing                                     Score: 25       Moves: 11
+
+Clearing
+You are in a clearing, with a forest surrounding you on all sides. A path
+leads south.
+On the ground is a pile of leaves.
+
+> Clearing                                     Score: 25       Moves: 12
+
+The forest becomes impenetrable to the north.
+
+> Clearing                                     Score: 25       Moves: 12
+
+Your score is 25 (total of 350 points), in 12 moves.
+This gives you the rank of Beginner.
+Do you wish to leave the game? (Y is affirmative): >

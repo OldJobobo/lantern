@@ -3,7 +3,9 @@ set -euo pipefail
 
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 runtime="$root/runtime/x86_64-linux/dfrotz"
-saves="$(mktemp -d)"
+adventure_runtime="$root/runtime/x86_64-linux/advent"
+scottfree_runtime="$root/runtime/x86_64-linux/scottfree"
+saves="$(mktemp -d "$root/.test-runtime-XXXXXX")"
 trap 'rm -rf "$saves"' EXIT
 
 smoke_story() {
@@ -21,4 +23,42 @@ smoke_story "zork1.z3" "ZORK I: The Great Underground Empire" "West of House"
 smoke_story "zork2.z3" "ZORK II: The Wizard of Frobozz" "Inside the Barrow"
 smoke_story "zork3.z3" "ZORK III: The Dungeon Master" "Endless Stair"
 
-printf 'Bundled dfrotz and Zork trilogy smoke passed.\n'
+adventure_save="$saves/colossal-cave.sav"
+adventure_output="$(printf 'n\nlook\nquit\ny\n' | timeout 10 "$adventure_runtime" -o -a "$adventure_save")"
+grep -Fq "Welcome to Adventure" <<<"$adventure_output"
+grep -Fq "end of a road" <<<"$adventure_output"
+test -s "$adventure_save"
+resume_output="$(printf 'quit\ny\n' | timeout 10 "$adventure_runtime" -o -a "$adventure_save")"
+grep -Fq "You have garnered" <<<"$resume_output"
+
+term_save="$saves/colossal-cave-term.sav"
+term_input="$saves/adventure-input"
+mkfifo "$term_input"
+"$adventure_runtime" -o -a "$term_save" <"$term_input" >"$saves/adventure-term.out" &
+adventure_pid=$!
+exec 3>"$term_input"
+printf 'n\neast\n' >&3
+sleep 0.2
+kill -TERM "$adventure_pid"
+term_status=0
+wait "$adventure_pid" || term_status=$?
+exec 3>&-
+test "$term_status" -eq 1
+test -s "$term_save"
+term_resume="$(printf 'quit\ny\n' | timeout 10 "$adventure_runtime" -o -a "$term_save")"
+grep -Fq "You're inside building" <<<"$term_resume"
+
+scott_fixture="$root/tests/fixtures/minimal-scott.dat"
+scott_state="$saves/state"
+mkdir -p "$scott_state"
+scott_args=(--save-root "$scott_state" --save-key imported-smoke -w "$scott_fixture")
+scott_output="$(printf 'look\n' | timeout 10 "$scottfree_runtime" "${scott_args[@]}")"
+grep -Fq "Scott Free, A Scott Adams game driver" <<<"$scott_output"
+grep -Fq "Lantern Test Chamber" <<<"$scott_output"
+scott_save_output="$(printf 'save\nscott-slot\n' | timeout 10 "$scottfree_runtime" "${scott_args[@]}")"
+grep -Fq "Saved." <<<"$scott_save_output"
+test -s "$scott_state/lantern/saves/scottfree/imported-smoke/scott-slot.sav"
+scott_restore_output="$(printf 'restore\nscott-slot\n' | timeout 10 "$scottfree_runtime" "${scott_args[@]}")"
+grep -Fq "Lantern Test Chamber" <<<"$scott_restore_output"
+
+printf 'Bundled Frotz, Zork trilogy, Open Adventure, and ScottFree smoke passed.\n'

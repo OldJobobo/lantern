@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="1536" viewBox="0 0 2048 1536" role="img" aria-label="A slightly aged off-white sheet of blue graph paper">
+  <defs>
+    <pattern id="minor-grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M0 0H48" fill="none" stroke="#7ea8bd" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="12 1.2 8 0.8 16 1.5 8.5" opacity="0.66"/>
+      <path d="M0 0V48" fill="none" stroke="#7ea8bd" stroke-width="1.35" stroke-linecap="round" stroke-dasharray="7 1.1 14 1.4 11 0.9 12.6" opacity="0.7"/>
+    </pattern>
+    <pattern id="major-grid" width="240" height="240" patternUnits="userSpaceOnUse">
+      <rect width="240" height="240" fill="url(#minor-grid)"/>
+      <path d="M0 0H240" fill="none" stroke="#5f91ab" stroke-width="2.25" stroke-linecap="round" stroke-dasharray="31 1.4 46 1.8 58 1.1 37 1.6 62.1" opacity="0.7"/>
+      <path d="M0 0V240" fill="none" stroke="#5f91ab" stroke-width="2.35" stroke-linecap="round" stroke-dasharray="42 1.8 27 1.2 65 1.9 52 1.4 47.7" opacity="0.74"/>
+    </pattern>
+
+    <radialGradient id="paper-tone" cx="48%" cy="43%" r="78%">
+      <stop offset="0" stop-color="#f4f0e3"/>
+      <stop offset="0.66" stop-color="#eee8d7"/>
+      <stop offset="1" stop-color="#ddd2ba"/>
+    </radialGradient>
+    <linearGradient id="edge-age" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b9985c" stop-opacity="0.16"/>
+      <stop offset="0.15" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="0.82" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#a77b3e" stop-opacity="0.14"/>
+    </linearGradient>
+    <radialGradient id="stain-a">
+      <stop offset="0" stop-color="#a77c42" stop-opacity="0.14"/>
+      <stop offset="0.42" stop-color="#b99358" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#b99358" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="stain-b">
+      <stop offset="0" stop-color="#8c683e" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#8c683e" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="ink-wear" x="-1%" y="-1%" width="102%" height="102%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.035 0.45" numOctaves="2" seed="43" stitchTiles="stitch" result="inkNoise"/>
+      <feColorMatrix in="inkNoise" type="matrix" values="
+        0 0 0 0 1
+        0 0 0 0 1
+        0 0 0 0 1
+        0.19 0.38 0.18 0 0.25" result="inkAlpha"/>
+      <feComposite in="SourceGraphic" in2="inkAlpha" operator="in"/>
+    </filter>
+    <filter id="fiber" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9 0.24" numOctaves="4" seed="11" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix in="noise" type="saturate" values="0" result="gray"/>
+      <feComponentTransfer in="gray" result="softNoise">
+        <feFuncR type="linear" slope="0.28" intercept="0.65"/>
+        <feFuncG type="linear" slope="0.25" intercept="0.68"/>
+        <feFuncB type="linear" slope="0.18" intercept="0.73"/>
+        <feFuncA type="table" tableValues="0 0.26"/>
+      </feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="softNoise" mode="multiply"/>
+    </filter>
+    <filter id="soft-blur"><feGaussianBlur stdDeviation="18"/></filter>
+
+    <clipPath id="sheet-clip">
+      <path d="M78 50 L104 58 L130 53 L156 46 L182 52 L208 49 L234 47 L260 46 L286 46 L312 50 L338 43 L364 50 L390 45 L416 48 L442 48 L468 45 L494 49 L520 51 L546 53 L572 46 L598 43 L624 50 L650 49 L676 46 L702 52 L728 45 L754 49 L780 44 L806 50 L832 49 L858 48 L884 46 L910 47 L936 43 L962 50 L988 44 L1014 50 L1040 50 L1066 50 L1092 44 L1118 43 L1144 45 L1170 50 L1196 47 L1222 48 L1248 46 L1274 44 L1300 44 L1326 51 L1352 43 L1378 43 L1404 44 L1430 43 L1456 46 L1482 49 L1508 44 L1534 51 L1560 51 L1586 47 L1612 51 L1638 50 L1664 51 L1690 44 L1716 46 L1742 50 L1768 48 L1794 43 L1820 51 L1846 48 L1872 50 L1898 47 L1924 45 L1950 45 L1976 46 L1977 47 L1975 73 L1978 99 L1969 125 L1974 151 L1978 177 L1975 203 L1975 229 L1975 255 L1979 281 L1977 307 L1981 333 L1973 359 L1976 385 L1973 411 L1978 437 L1968 463 L1973 489 L1968 515 L1979 541 L1981 567 L1979 593 L1978 619 L1981 645 L1975 671 L1981 697 L1973 723 L1980 749 L1978 775 L1978 801 L1973 827 L1976 853 L1977 879 L1968 905 L1973 931 L1974 957 L1980 983 L1966 1009 L1976 1035 L1974 1061 L1976 1087 L1975 1113 L1969 1139 L1976 1165 L1981 1191 L1974 1217 L1978 1243 L1977 1269 L1972 1295 L1973 1321 L1977 1347 L1978 1373 L1975 1399 L1974 1425 L1976 1451 L1972 1477 L1977 1492 L1951 1485 L1925 1485 L1899 1484 L1873 1488 L1847 1487 L1821 1485 L1795 1490 L1769 1492 L1743 1487 L1717 1485 L1691 1487 L1665 1488 L1639 1485 L1613 1491 L1587 1488 L1561 1485 L1535 1489 L1509 1488 L1483 1484 L1457 1492 L1431 1485 L1405 1488 L1379 1477 L1353 1491 L1327 1488 L1301 1492 L1275 1489 L1249 1489 L1223 1487 L1197 1490 L1171 1488 L1145 1490 L1119 1492 L1093 1488 L1067 1492 L1041 1487 L1015 1490 L989 1492 L963 1484 L937 1485 L911 1485 L885 1491 L859 1485 L833 1486 L807 1487 L781 1491 L755 1487 L729 1486 L703 1490 L677 1482 L651 1485 L625 1487 L599 1484 L573 1492 L547 1489 L521 1490 L495 1489 L469 1486 L443 1491 L417 1481 L391 1491 L365 1490 L339 1487 L313 1492 L287 1492 L261 1492 L235 1487 L209 1491 L183 1487 L157 1492 L131 1485 L105 1488 L79 1484 L64 1488 L69 1462 L72 1436 L67 1410 L67 1384 L70 1358 L70 1332 L64 1306 L68 1280 L65 1254 L72 1228 L64 1202 L72 1176 L71 1150 L72 1124 L64 1098 L72 1072 L64 1046 L80 1020 L71 994 L69 968 L68 942 L67 916 L64 890 L72 864 L65 838 L71 812 L68 786 L67 760 L66 734 L64 708 L70 682 L65 656 L72 630 L69 604 L71 578 L71 552 L67 526 L71 500 L69 474 L72 448 L64 422 L72 396 L65 370 L66 344 L65 318 L64 292 L65 266 L66 240 L65 214 L72 188 L65 162 L69 136 L71 110 L66 84 L70 58Z"/>
+    </clipPath>
+    <filter id="torn-edge" x="-3%" y="-3%" width="106%" height="106%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.0025 0.0045" numOctaves="2" seed="29" result="softWave"/>
+      <feDisplacementMap in="SourceGraphic" in2="softWave" scale="32" xChannelSelector="R" yChannelSelector="G" result="gentlyWaved"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.075 0.19" numOctaves="3" seed="83" result="edgeNoise"/>
+      <feDisplacementMap in="gentlyWaved" in2="edgeNoise" scale="10" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <mask id="sheet-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="2048" height="1536">
+      <rect x="68" y="47" width="1909" height="1441" fill="#fff" filter="url(#torn-edge)"/>
+    </mask>
+  </defs>
+
+  <g>
+    <g mask="url(#sheet-mask)">
+      <rect x="52" y="34" width="1948" height="1474" fill="url(#paper-tone)"/>
+      <rect x="52" y="34" width="1948" height="1474" fill="url(#major-grid)" opacity="0.9" filter="url(#ink-wear)"/>
+      <rect x="52" y="34" width="1948" height="1474" fill="url(#edge-age)"/>
+
+      <ellipse cx="168" cy="134" rx="235" ry="180" fill="url(#stain-a)" filter="url(#soft-blur)"/>
+      <ellipse cx="1870" cy="1380" rx="285" ry="205" fill="url(#stain-a)" filter="url(#soft-blur)"/>
+      <ellipse cx="1685" cy="258" rx="190" ry="118" fill="url(#stain-b)" filter="url(#soft-blur)"/>
+      <ellipse cx="552" cy="1220" rx="260" ry="145" fill="url(#stain-b)" filter="url(#soft-blur)"/>
+
+      <g opacity="0.13" fill="none" stroke="#876a45" stroke-linecap="round">
+        <path d="M91 390 C230 403 301 389 419 398" stroke-width="2"/>
+        <path d="M1731 1463 C1814 1442 1884 1454 1957 1437" stroke-width="2.2"/>
+        <path d="M1950 593 C1909 664 1924 740 1945 812" stroke-width="1.8"/>
+      </g>
+
+      <rect x="52" y="34" width="1948" height="1474" fill="#ffffff" opacity="0.22" filter="url(#fiber)"/>
+    </g>
+  </g>
+</svg>
