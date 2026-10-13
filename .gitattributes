@@ -1,3 +1,6 @@
+# Unified patches retain upstream context-line prefixes and tabs verbatim.
+third_party/**/*.patch whitespace=-blank-at-eol,-space-before-tab
+
 # Archive downloads exclude local coordination, tests, and design-only assets.
 .hermes/ export-ignore
 .pi/ export-ignore

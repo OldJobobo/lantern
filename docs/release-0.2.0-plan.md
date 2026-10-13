@@ -54,4 +54,7 @@ Defer ScottFree/Open Adventure automapping, manual map editing/hints, additional
 3. **Host acceptance beyond the isolated harness:** verify installed-plugin upgrade from v0.1.7 with real existing saves/configuration, compositor window placement, manual drag/pan/zoom at all scales, rapid keyboard switching, actual audio audition, file-picker cancellation, and interrupted native-window closure. The harness verifies real QML and engines but does not substitute for all installed-shell behavior. Live config/install mutation requires approval.
 4. **Broader inference field testing:** death/restart/restore and duplicate-label cases have fixtures/model coverage, but gameplay through loops, maze regions, and repeated labels still needs a sustained Zork I acceptance session. Other-game observers are explicitly deferred, not unfinished release promises.
 
-**Current disposition:** integrated, improved, locally tested 0.2.0 candidate; not releasable until the blockers above are satisfied. No tag or published release created.
+- Local candidate commit: `14121e2` (`Prepare Lantern 0.2.0 release candidate`). A single atomic integration commit keeps Panel references and their new components/helpers together; it includes the original unpublished engine and automap work plus reviewed fixes. No `[verified]` release label is claimed.
+- Generated unified patches retain upstream context whitespace verbatim; Git whitespace attributes exclude only their context-prefix trailing-space/space-before-tab warnings rather than altering corresponding-source patches.
+
+**Current disposition:** integrated, improved, locally tested 0.2.0 candidate; not releasable until the blockers above are satisfied. No push, tag, installed-config mutation, or published release created.
