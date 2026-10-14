@@ -4,7 +4,6 @@ import Qt.labs.folderlistmodel
 import Quickshell
 import Quickshell.Io
 import qs.Commons
-import qs.Ui
 import "Model.js" as Model
 import "Automap.js" as Automap
 import "AutomapSession.js" as AutomapSession

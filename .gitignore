@@ -4,3 +4,4 @@
 .worktrees/
 .test-*/
 .release-harness-*.qml
+/Commons/

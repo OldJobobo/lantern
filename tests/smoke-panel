@@ -3,9 +3,17 @@
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
+# Quickshell resolves qs.* only for files under the config root, so the
+# harness runs from the plugin root with temporary stand-ins for the host
+# modules Panel imports. They are never part of the installed plugin.
+if [[ -e "$root/Commons" ]]; then
+  printf '%s\n' "Refusing to run: $root/Commons already exists"
+  exit 1
+fi
 fixture="$(mktemp -d "$root/.test-panel-XXXXXX")"
 harness="$(mktemp "$root/.release-harness-XXXXXX.qml")"
-trap 'rm -rf -- "$fixture"; rm -f -- "$harness"' EXIT
+trap 'rm -rf -- "$fixture" "$root/Commons"; rm -f -- "$harness"' EXIT
+cp -R tests/host-stubs/Commons "$root/Commons"
 mkdir -p "$fixture"/{runtime,state,data,config,cache}
 chmod 0700 "$fixture/runtime"
 mkdir -p "$fixture/data/lantern"

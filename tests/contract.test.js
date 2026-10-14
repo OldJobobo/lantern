@@ -18,14 +18,17 @@ test("manifest declares a summonable third-party panel", () => {
   assert.equal(manifest.license, "MIT AND GPL-2.0-or-later AND BSD-2-Clause")
 })
 
-test("shell entry points import the host Commons and Ui modules", () => {
+test("shell entry points import the host modules they use", () => {
   // BarWidget needs WidgetButton/Style and Panel needs Color; the host only
   // resolves them through these imports, which offline Qt tests cannot catch.
-  for (const file of ["BarWidget.qml", "Panel.qml"]) {
-    const source = fs.readFileSync(path.join(root, file), "utf8")
-    assert.match(source, /^import qs\.Commons$/m, `${file} imports qs.Commons`)
-    assert.match(source, /^import qs\.Ui$/m, `${file} imports qs.Ui`)
-  }
+  // Isolated Panel harnesses supply Color from tests/host-stubs instead.
+  const bar = fs.readFileSync(path.join(root, "BarWidget.qml"), "utf8")
+  assert.match(bar, /^import qs\.Commons$/m)
+  assert.match(bar, /^import qs\.Ui$/m)
+  const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
+  assert.match(panel, /^import qs\.Commons$/m)
+  assert.doesNotMatch(panel, /^import qs\.(?!Commons$)/m, "Panel imports only stubbed host modules")
+  assert.match(fs.readFileSync(path.join(root, "tests/host-stubs/Commons/Color.qml"), "utf8"), /pragma Singleton/)
 })
 
 test("release polls Lantern configuration through the bounded reader", () => {
