@@ -8,6 +8,8 @@ ShellRoot {
   property int ticks: 0
   property int initialTurn: 0
   property bool failed: false
+  property var loopCommands: ["n", "n", "n", "s", "e", "w", "w", "n", "e", "s"]
+  property int loopIndex: 0
 
   function fail(message) {
     failed = true
@@ -17,6 +19,7 @@ ShellRoot {
 
   Lantern.Panel { id: panel }
   Component.onCompleted: {
+    for (var loop = 0; loop < 5; loop++) loopCommands = loopCommands.concat(["w", "n", "e", "s"])
     panel.audioMuted = true
     panel.reduceMotion = true
     panel.open(JSON.stringify({ cartridge: "zork1", effects: false }))
@@ -53,8 +56,29 @@ ShellRoot {
         harness.stage = 4
       } else if (harness.stage === 4 && panel.mapAvailable) {
         if (panel.mapState.edges.length !== 1) { harness.fail("map did not survive cartridge restart"); return }
-        panel.returnToMenu()
-        harness.stage = 5
+        panel.submitCommand(harness.loopCommands[0])
+        harness.loopIndex = 1
+        harness.stage = 41
+      } else if (harness.stage === 41 && panel.mapLastStatus && panel.mapLastStatus.moves === harness.loopIndex) {
+        if (harness.loopIndex < harness.loopCommands.length) {
+          panel.submitCommand(harness.loopCommands[harness.loopIndex])
+          harness.loopIndex++
+        } else {
+          if (panel.mapState.nodes.length !== 9 || panel.mapState.edges.length !== 15) {
+            harness.fail("long-play duplicate rooms or routes: " + panel.mapState.nodes.length + "/" + panel.mapState.edges.length); return
+          }
+          var repeated = panel.mapState.edges.filter(function(edge) {
+            return edge.from === "room-64" && edge.to === "room-137" && edge.direction === "north"
+          })
+          if (repeated.length !== 1 || repeated[0].traversals !== 6) {
+            harness.fail("long-play traversal counts did not reuse persisted edge"); return
+          }
+          if (panel.transcript.indexOf("LANTERN_ROOM_V1") !== -1 || panel.transcript.indexOf("LANTERN_INPUT_V1") !== -1) {
+            harness.fail("native metadata leaked into the transcript"); return
+          }
+          panel.returnToMenu()
+          harness.stage = 5
+        }
       } else if (harness.stage === 5 && panel.viewMode === "menu" && !panel.mapFinalizationPending) {
         panel.launchCartridge(panel.bundledGames[1])
         harness.stage = 6

@@ -13,7 +13,7 @@ Original LANTERN code and materials are licensed under the repository-level MIT 
 - License text: `third_party/frotz/COPYING`
 - Build and binary provenance: `third_party/frotz/BUILD.md`
 
-The distributed executable is the unmodified `usr/bin/dfrotz` from Arch Linux package `frotz-dumb 2.55-1` for `x86_64`. LANTERN does not relicense it.
+The executable is built from the bundled Frotz 2.55 source with the GPL-2.0-or-later modification `third_party/frotz/lantern-room-events.patch`. This adds opt-in, read-only room-object observations on stdout; normal output is unchanged without the opt-in. See `third_party/frotz/BUILD.md` and `scripts/build-frotz` for corresponding source and current build provenance. LANTERN does not relicense Frotz.
 
 ## Zork I
 

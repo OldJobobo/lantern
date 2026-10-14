@@ -473,6 +473,8 @@ test("third-party checksum inventory covers every distributed upstream artifact"
     "games/zork2.z3",
     "games/zork3.z3",
     "third_party/frotz/source/frotz-2.55.tar.gz",
+    "third_party/frotz/lantern-room-events.patch",
+    "scripts/build-frotz",
     "third_party/open-adventure/source/open-adventure-1.22.tar.gz",
     "third_party/open-adventure/COPYING",
     "third_party/open-adventure/generated/dungeon.c",

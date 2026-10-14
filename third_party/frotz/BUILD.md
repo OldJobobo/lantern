@@ -1,48 +1,44 @@
 # Frotz binary provenance and corresponding source
 
-LANTERN distributes the dumb-terminal Frotz executable as `runtime/x86_64-linux/dfrotz`.
+Lantern distributes the dumb-terminal Frotz executable as `runtime/x86_64-linux/dfrotz`.
 
-## Upstream source
+## Corresponding source
 
-- Project: <https://gitlab.com/DavidGriffith/frotz>
+Upstream project:
+https://gitlab.com/DavidGriffith/frotz
+
 - Version/tag: `2.55`
 - Commit: `acf205585a9472d27c07c0fe62da4b8bc89d1ec7`
-- License: GPL-2.0-or-later; see `../COPYING`
-- Complete source archive shipped with LANTERN: `source/frotz-2.55.tar.gz`
+- License: GPL-2.0-or-later; see `COPYING`
+- Complete upstream source: `source/frotz-2.55.tar.gz`
+- Lantern modification: `lantern-room-events.patch` (GPL-2.0-or-later)
 
-The included archive was generated from that exact commit with:
+The archive was generated using `git archive --format=tar.gz --prefix=frotz-2.55/` at that commit. Apply the supplied patch to obtain the complete corresponding source for the modified executable.
 
-```bash
-git archive --format=tar.gz --prefix=frotz-2.55/ \
-  acf205585a9472d27c07c0fe62da4b8bc89d1ec7 > frotz-2.55.tar.gz
-```
+## Room observation protocol
 
-## Distributed executable
+Setting `LANTERN_ROOM_EVENTS=1` opts into V3 status observations. Default output is unchanged. Before the rendered status line, `z_show_status` flushes pending story output and writes an ASCII record-separator-delimited stdout line:
 
-The executable was copied unchanged from the signed Arch Linux package:
+`RS + LANTERN_ROOM_V1 + space + room-object-id + space + signed-score + space + moves + US + newline`
 
-- Package: `frotz-dumb 2.55-1`, `x86_64`
-- Package URL used: `https://mirror.omarchy.org/extra/os/x86_64/frotz-dumb-2.55-1-x86_64.pkg.tar.zst`
-- Package SHA-256: `ee48d8bb470dc160da9521982c25c83a25f1f7b7c52a1817417ed531e09126af`
-- Package signature key: `89DB0CFD528EC1A92E0C11341736C918F59A5673`
-- Signer: Alexander Epaneshnikov, Arch Linux packager
-- Extracted executable SHA-256: `5da9c0887299187cebb643308ec24844115e1a52f61303a9090906114f139c8e`
-- Runtime dependency reported by the package: glibc
+RS is byte 0x1e; US is byte 0x1f. The object ID is read directly from global 0, the same object passed to `print_object` for the status title. Bounds are V3 object IDs 1–255, signed 16-bit score, and unsigned 16-bit moves. A preceding game or filename prompt may occur on the same line. Identity and title use the same ordered stdout stream, not independently scheduled stderr. No game commands or memory writes are added. Some commands such as quit produce an event without a rendered status title; clients must not carry their command forward to another event.
 
-The package signature was verified with Arch's `pacman-key --verify` before extraction. The exact Arch packaging recipe is retained under `arch/` at packaging commit `883616bcff7a79c626b6d5d09812db74d134bce5` (tag `2.55-1`). It builds the dumb interface with:
+The dumb interface also emits `RS + LANTERN_INPUT_V1 + space + hex-encoded-command + US + newline` after completed VM line input. Commands are limited to 96 printable ASCII characters; `!` marks an unsupported/oversized/unterminated input instead of truncating it into a movement. This reports input already read by the interpreter, not synthesized input. Filename and overwrite dialogs are excluded. Quit/restart confirmation replies are included, so they cannot leave a client queue attached to a later movement. Prompts preceding metadata remain ordinary visible output.
+
+Lantern enables this only for its fingerprint-verified Zork I cartridge. New IDs require the immediately following matching status title; already-recorded IDs can be recognized from authoritative metadata alone when save/quit omits that title. The client never merges by name or layout and hides metadata from the transcript. Other cartridges receive normal interpreter output.
+
+## Rebuild and release gate
+
+From the repository root:
 
 ```bash
-make PREFIX=/usr dumb
+./scripts/build-frotz
 ```
 
-## Rebuild
+This extracts the archive, applies the patch and builds the dumb interface using digest-pinned GCC 14.2.0 Bookworm. Flags and the container digest are recorded in the script. The result depends only on glibc. Checksums include the archive, patch, script, and executable in `third_party/SHA256SUMS`.
 
-On a glibc Linux system with a C toolchain and `make`:
+**Current candidate:** built by `scripts/build-frotz` in the pinned container; a second pinned rebuild compared byte-for-byte and the checksum records that artifact. Remote CI has not yet repeated the comparison.
 
-```bash
-tar -xzf source/frotz-2.55.tar.gz
-cd frotz-2.55
-make PREFIX=/usr dumb
-```
+## Historical Arch provenance
 
-The resulting executable is `dfrotz`. Compiler and linker versions can change its byte-for-byte checksum; functional source correspondence, rather than reproducibility of the Arch build environment, is the purpose of this recipe.
+The previously distributed unmodified executable came from signed Arch package `frotz-dumb 2.55-1` (x86_64), package SHA-256 `ee48d8bb470dc160da9521982c25c83a25f1f7b7c52a1817417ed531e09126af`. Its executable SHA-256 was `5da9c0887299187cebb643308ec24844115e1a52f61303a9090906114f139c8e`. The signature was verified with `pacman-key --verify` using key `89DB0CFD528EC1A92E0C11341736C918F59A5673` (Alexander Epaneshnikov). Its packaging recipe remains under `arch/` at commit `883616bcff7a79c626b6d5d09812db74d134bce5`; that recipe does not describe the new modified executable.

@@ -1,0 +1,56 @@
+--- src/common/screen.c
++++ src/common/screen.c
+@@ -19,6 +19,8 @@
+  */
+ 
+ #include "frotz.h"
++#include <stdlib.h>
++#include <string.h>
+ 
+ extern void set_header_extension(int, zword);
+ 
+@@ -1746,6 +1748,16 @@
+ 	LOW_WORD(addr, global1)
+ 	addr += 2;
+ 	LOW_WORD(addr, global2)
++	/* Lantern modification: opt-in authoritative V3 room metadata. Keep it
++	 * on stdout so identity and the following status label cannot race. */
++	const char *room_events = getenv("LANTERN_ROOM_EVENTS");
++	if (z_header.version == V3 && room_events && strcmp(room_events, "1") == 0 &&
++	    global0 > 0 && global0 <= 255) {
++		flush_buffer();
++		fprintf(stdout, "\036LANTERN_ROOM_V1 %u %d %u\037\n",
++		        (unsigned)global0, (int)(short)global1, (unsigned)global2);
++		fflush(stdout);
++	}
+ 	/* Frotz uses window 7 for the status line. Don't forget to select
+ 	   reverse and fixed width text style */
+ 	set_window(7);
+--- src/dumb/dinput.c
++++ src/dumb/dinput.c
+@@ -492,6 +492,25 @@
+ 	if ((read_line_buffer[0] == '\r') && (read_line_buffer[1] == '\0'))
+ 		read_line_buffer[0] = '\0';
+ 
++	/* Lantern modification: report the actual completed VM input, not file
++	 * dialogs or a client-side prediction. Hex keeps record framing intact. */
++	const char *room_events = getenv("LANTERN_ROOM_EVENTS");
++	if (z_header.version == V3 && room_events && strcmp(room_events, "1") == 0) {
++		unsigned int length = 0;
++		bool valid = terminator == ZC_RETURN;
++		while (length < 97 && buf[length]) {
++			if (buf[length] < 32 || buf[length] > 126) valid = FALSE;
++			length++;
++		}
++		if (length > 96) valid = FALSE;
++		flush_buffer();
++		fputs("\036LANTERN_INPUT_V1 ", stdout);
++		if (!valid) fputc('!', stdout);
++		else for (unsigned int index = 0; index < length; index++)
++			fprintf(stdout, "%02x", (unsigned)buf[index]);
++		fputs("\037\n", stdout);
++		fflush(stdout);
++	}
+ 	timed_out_last_time = FALSE;
+ 	return terminator;
+ } /* os_read_line */

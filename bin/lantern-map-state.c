@@ -13,7 +13,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define SCHEMA_VERSION 1U
+#define SCHEMA_VERSION 2U
 #define MAX_STATE_BYTES (2U * 1024U * 1024U)
 #define MAX_ENGINE 32U
 #define SHA256_LENGTH 64U
@@ -861,8 +861,9 @@ int main(int argc, char **argv) {
   int create = strcmp(argv[1], "write") == 0;
   if (!create && strcmp(argv[1], "read") != 0 && strcmp(argv[1], "reset") != 0) return 64;
 
-  char filename[MAX_ENGINE + 1U + SHA256_LENGTH + 5U + 1U];
-  if (snprintf(filename, sizeof(filename), "%s-%s.json", argv[2], argv[3]) >= (int)sizeof(filename)) return 64;
+  /* A new namespace preserves all legacy coordinate-inferred maps untouched. */
+  char filename[MAX_ENGINE + 4U + SHA256_LENGTH + 5U + 1U];
+  if (snprintf(filename, sizeof(filename), "%s-v2-%s.json", argv[2], argv[3]) >= (int)sizeof(filename)) return 64;
   int maps = open_maps_directory(create);
   if (maps < 0) return strcmp(argv[1], "reset") == 0 && maps == DIRECTORY_ABSENT ? 0 : 65;
 

@@ -6,7 +6,7 @@ Window {
   property real previewScale: 1.0
   property bool captureMode: Qt.application.arguments.indexOf("--capture") !== -1
   property var denseState: ({
-    schemaVersion: 1,
+    schemaVersion: 2,
     cartridge: ({ engine: "zmachine", sha256: "1111111111111111111111111111111111111111111111111111111111111111" }),
     nodes: [
       { id: "room-1", label: "West of House", confidence: "confirmed", firstSeen: 1, lastSeen: 24 },

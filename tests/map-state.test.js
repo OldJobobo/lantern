@@ -42,7 +42,7 @@ function runHelper(stateRoot, operation, keyEngine = engine, keySha = sha256, in
 }
 
 function targetPath(stateRoot, keyEngine = engine, keySha = sha256) {
-  return path.join(stateRoot, "lantern/maps", `${keyEngine}-${keySha}.json`)
+  return path.join(stateRoot, "lantern/maps", `${keyEngine}-v2-${keySha}.json`)
 }
 
 function mode(file) {
@@ -85,7 +85,7 @@ test("persistent state rejects session fields, empty identity, future schemas, t
   const persistent = Automap.toPersistentState(sessionState())
   assert.throws(() => Automap.toPersistentState(Automap.createEmptyState()), /engine is required/)
   assert.throws(() => Automap.hydratePersistentState("{"), /invalid persistent automap JSON/)
-  assert.throws(() => Automap.hydratePersistentState({ ...persistent, schemaVersion: 2 }), /schemaVersion/)
+  assert.throws(() => Automap.hydratePersistentState({ ...persistent, schemaVersion: 3 }), /schemaVersion/)
   assert.throws(() => Automap.hydratePersistentState({ ...persistent, currentNodeId: "room-1" }), /invalid fields/)
 
   const rollback = JSON.parse(JSON.stringify(persistent))
@@ -206,7 +206,7 @@ test("native numeric parsing matches JSON.parse integer and range semantics", ()
     const base = Automap.serializePersistentState(sessionState())
     const seed = Automap.toPersistentState(sessionState()).layout.seed
     let accepted = base
-    accepted = replaceRequired(accepted, '"schemaVersion":1', '"schemaVersion":1e0')
+    accepted = replaceRequired(accepted, '"schemaVersion":2', '"schemaVersion":2e0')
     accepted = replaceRequired(accepted, '"firstSeen":1', '"firstSeen":1.0')
     accepted = replaceRequired(accepted, '"lastSeen":1', '"lastSeen":1e0')
     accepted = replaceRequired(accepted, '"firstSeen":2', '"firstSeen":2.0')
@@ -241,7 +241,7 @@ test("native numeric parsing matches JSON.parse integer and range semantics", ()
       replaceRequired(base, '"turn":2', `"turn":${longMalformed}`)).status, 0)
 
     const rejected = [
-      ['"schemaVersion":1', '"schemaVersion":1.5'],
+      ['"schemaVersion":2', '"schemaVersion":2.5'],
       ['"firstSeen":1', '"firstSeen":1.5'],
       ['"traversals":1', '"traversals":1e-1'],
       [`"seed":${seed}`, `"seed":${seed}.5`],
@@ -306,6 +306,28 @@ test("native helper roundtrips, overwrites, and resets exact-key state with priv
   } finally {
     fs.rmSync(stateRoot, { recursive: true, force: true })
   }
+})
+
+test("v2 read/write/reset preserves legacy v1 maps byte-for-byte in a separate namespace", () => {
+  const stateRoot = fs.mkdtempSync(path.join(root, ".test-map-state-"))
+  try {
+    const maps = path.join(stateRoot, "lantern/maps")
+    fs.mkdirSync(maps, { recursive: true, mode: 0o700 })
+    const legacyPath = path.join(maps, `${engine}-${sha256}.json`)
+    const current = Automap.toPersistentState(sessionState())
+    const legacy = JSON.stringify({ ...current, schemaVersion: 1 })
+    fs.writeFileSync(legacyPath, legacy, { mode: 0o600 })
+    const inode = fs.statSync(legacyPath).ino
+    assert.throws(() => Automap.hydratePersistentState(legacy), /schemaVersion/)
+    assert.notEqual(runHelper(stateRoot, "read").status, 0)
+    assert.equal(runHelper(stateRoot, "write", engine, sha256, JSON.stringify(current)).status, 0)
+    assert.deepEqual(JSON.parse(runHelper(stateRoot, "read").stdout), current)
+    assert.equal(runHelper(stateRoot, "reset").status, 0)
+    assert.equal(fs.readFileSync(legacyPath, "utf8"), legacy)
+    assert.equal(fs.statSync(legacyPath).ino, inode)
+    assert.equal(mode(legacyPath), 0o600)
+    assert.deepEqual(fs.readdirSync(maps), [path.basename(legacyPath)])
+  } finally { fs.rmSync(stateRoot, { recursive: true, force: true }) }
 })
 
 test("native helper rejects unsafe hierarchy modes and symlinks while reset distinguishes absence", () => {
@@ -402,7 +424,7 @@ test("native helper rejects corrupt, future, excessive, and structurally invalid
     const valid = Automap.toPersistentState(sessionState())
     assert.notEqual(runHelper(stateRoot, "write", engine, sha256, "{").status, 0)
     assert.notEqual(runHelper(stateRoot, "write", engine, sha256,
-      JSON.stringify({ ...valid, schemaVersion: 2 })).status, 0)
+      JSON.stringify({ ...valid, schemaVersion: 3 })).status, 0)
 
     const longLabel = JSON.parse(JSON.stringify(valid))
     longLabel.nodes[0].label = "x".repeat(Automap.LIMITS.labelLength + 1)

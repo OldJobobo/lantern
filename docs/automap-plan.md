@@ -2,7 +2,13 @@
 
 ## Status
 
-Implemented in the unpublished 0.2.0 candidate, with conservative scope: only the exact bundled Zork I content fingerprint (including byte-identical imports) enables mapping. Engine-neutral inference, bounded persistence, the Ctrl+P paper overlay, accessible summary, reduced motion, and original travel sounds are present. Other-engine observers and manual editing remain deferred. See `release-0.2.0-plan.md` for executed validation and release blockers.
+Implemented in the unpublished 0.2.0 candidate, with conservative scope: only the exact bundled Zork I content fingerprint (including byte-identical imports) enables mapping. Authoritative Frotz room-object identity, bounded persistence, the Ctrl+P paper overlay, accessible summary, reduced motion, and original travel sounds are present. Other-engine observers and manual editing remain deferred. See `release-0.2.0-plan.md` for executed validation and release blockers.
+
+### Identity correction after long-play diagnosis
+
+A 31-frame real-runtime replay visited nine room objects but the original coordinate inferencer produced fourteen nodes. Zork's compass paths are non-Euclidean, and distinct room objects share titles such as Forest/Clearing. The installed path now uses `reduceIdentifiedTurn` only: opt-in native room IDs and actual completed VM input arrive as bounded records on the same stdout stream as titles. A matching title names a newly observed ID; an already-known ID can be recognized even when save/quit omits the title. Missing identity never falls back to labels or coordinates. Directed routes are recorded only for observed movement; revisits increment existing traversal counts. Input controls and decreasing score/moves force reacquisition without teleport edges.
+
+Schema 2 uses `<engine>-v2-<sha256>.json`; all v1 files remain untouched, including on reset. There is no label-based migration. `reduceTurn` remains only as the legacy model for historical regression fixtures, not the installed observer. The recorded long-play fixture and real-engine tests cover loops, repeated labels, quit cancellation, restart, and forward-move-count restores. See `third_party/frotz/BUILD.md` for the modified GPL source and pinned-build release gate.
 
 The sections below retain the original design rationale and delivery phases; they are not a claim that every proposed future capability ships in 0.2.0. The live overlay uses a 914×682 logical surface at x=46, y=29, and closes at x=-854; these supersede the earlier recommended dimensions below.
 

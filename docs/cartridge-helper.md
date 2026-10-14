@@ -24,7 +24,7 @@ Z-machine checks identify versions 1–8; ScottFree header checks reject overflo
 
 ## Reproducible build
 
-**Candidate caveat:** during 0.2.0 review the source was hardened and the binary rebuilt with local GCC 16.2.1 for testing. Docker access was denied. Replace it with the pinned build and update its checksum before release; byte-for-byte correspondence is not yet verified for this candidate.
+**Candidate status:** the hardened 0.2.0 helper was rebuilt with the pinned container, its checksum refreshed, and a second pinned rebuild compared byte-for-byte. Remote CI has not yet repeated that comparison.
 
 From the repository root:
 

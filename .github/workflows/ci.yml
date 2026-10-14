@@ -61,11 +61,9 @@ jobs:
         run: |
           ./scripts/build-scottfree "$RUNNER_TEMP/scottfree"
           cmp --silent runtime/x86_64-linux/scottfree "$RUNNER_TEMP/scottfree"
-      - name: Build corresponding Frotz source
+      - name: Rebuild and verify exact patched Frotz runtime
         run: |
-          mkdir -p /tmp/lantern-frotz-source
-          tar -C /tmp/lantern-frotz-source -xzf third_party/frotz/source/frotz-2.55.tar.gz
-          make -C /tmp/lantern-frotz-source/frotz-2.55 PREFIX=/usr dumb
-          test -x /tmp/lantern-frotz-source/frotz-2.55/dfrotz
+          ./scripts/build-frotz "$RUNNER_TEMP/dfrotz"
+          cmp --silent runtime/x86_64-linux/dfrotz "$RUNNER_TEMP/dfrotz"
       - name: Smoke bundled engines and factory cartridges
         run: ./tests/smoke-runtime

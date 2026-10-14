@@ -5,7 +5,7 @@ function supportsCartridge(engine, sha256) {
     sha256 === "37084966477dff679282de42974b2077156b1bd68fad92a65d4ea94d8eb64d79"
 }
 
-var MAP_SCHEMA_VERSION = 1
+var MAP_SCHEMA_VERSION = 2
 var MAX_RAW_OUTPUT = 65536
 var MAX_PERSISTENCE_BYTES = 2097152
 var MAX_COMMAND_LENGTH = 96
@@ -528,9 +528,9 @@ function confirmedObservation(observations) {
   return null
 }
 
-function addNode(state, label, turn, position) {
+function addNode(state, label, turn, position, identity) {
   if (state.nodes.length >= MAX_NODES) return null
-  var id = nextRoomId(state)
+  var id = identity || nextRoomId(state)
   if (id === "") return null
   state.nodes.push({
     id: id,
@@ -610,6 +610,90 @@ function resynchronizeState(state) {
   return next
 }
 
+// Identity and title arrive on one ordered stdout stream, never separate pipes.
+function parseRoomEvent(rawLine) {
+  var raw = String(rawLine || "").replace(/\r$/, "")
+  if (raw.length > MAX_RAW_OUTPUT) return null
+  var match = /^([^\u001e\u001f]*)\u001eLANTERN_ROOM_V1 ([1-9][0-9]{0,2}) (-?[0-9]{1,5}) ([0-9]{1,5})\u001f$/.exec(raw)
+  if (!match) return null
+  var objectId = Number(match[2])
+  var score = Number(match[3])
+  var moves = Number(match[4])
+  if (objectId > 255 || score < -32768 || score > 32767 || moves > 65535) return null
+  return { roomId: "room-" + objectId, score: score, moves: moves,
+           frame: /> ?$/.test(match[1]) ? "prompt" : "startup" }
+}
+
+function parseInputEvent(rawLine) {
+  var raw = String(rawLine || "").replace(/\r$/, "")
+  if (raw.length > MAX_RAW_OUTPUT) return null
+  var match = /^[^\u001e\u001f]*\u001eLANTERN_INPUT_V1 (!|(?:[0-9a-f]{2}){0,96})\u001f$/.exec(raw)
+  if (!match) return null
+  if (match[1] === "!") return { valid: false, command: "" }
+  var command = ""
+  for (var index = 0; index < match[1].length; index += 2) {
+    var code = parseInt(match[1].slice(index, index + 2), 16)
+    if (code < 32 || code > 126) return { valid: false, command: "" }
+    command += String.fromCharCode(code)
+  }
+  return { valid: true, command: command }
+}
+
+function stripRoomMetadata(rawLine) {
+  var visible = String(rawLine || "").replace(/\u001eLANTERN_(?:ROOM|INPUT)_V1 [^\u001e\u001f]*\u001f\r?$/, "")
+  return /^> ?$/.test(visible) ? "" : visible
+}
+
+function pairRoomStatus(event, rawLine) {
+  if (!event) return null
+  var framed = observeFrotzStatusFrame(rawLine, "startup")
+  if (!framed || framed.observation.status.score !== event.score || framed.observation.status.moves !== event.moves) return null
+  framed.observation.roomId = event.roomId
+  framed.frame = event.frame
+  return framed
+}
+
+// An ID already recorded needs no new title to be recognized. Save/quit may
+// report authoritative room metadata without rendering a status title.
+function knownRoomObservation(state, event) {
+  if (!event) return null
+  var node = nodeById(state, event.roomId)
+  return node ? { type: "location", engine: "zmachine", confidence: "confirmed",
+    label: node.label, roomId: node.id, status: { score: event.score, moves: event.moves } } : null
+}
+
+// Live mapping uses ONLY this reducer. reduceTurn below is the legacy inference
+// model retained for regression fixtures, not the installed identity path.
+function reduceIdentifiedTurn(state, command, observation) {
+  var checked = validateMapState(state)
+  if (!checked.valid) throw new TypeError("invalid automap state: " + checked.errors[0])
+  var next = cloneState(state)
+  if (!observation || observation.type !== "location" || observation.engine !== "zmachine" ||
+      observation.confidence !== "confirmed" || !/^room-[1-9][0-9]{0,2}$/.test(observation.roomId || "") ||
+      Number(observation.roomId.slice(5)) > 255 || !validObservedLabel(observation.label))
+    return resynchronizeState(next)
+
+  next.turn = Math.min(MAX_TRAVERSALS, next.turn + 1)
+  var control = normalizeControlCommand(command)
+  var movement = normalizeMovementCommand(command)
+  var source = next.currentNodeId === null ? null : nodeById(next, next.currentNodeId)
+  var canLink = control === "" && !next.resyncRequired && source !== null && movement !== ""
+  var targetId = observation.roomId
+  if (!nodeById(next, targetId)) {
+    var origin = source ? next.layout.positions[source.id] : { x: 0, y: 0, z: 0 }
+    var position = canLink ? coordinatesFromDirection(origin, movement) : clonePosition(origin)
+    if (!addNode(next, observation.label, next.turn, position, targetId)) return resynchronizeState(next)
+  }
+  nodeById(next, targetId).label = observation.label
+  touchNode(next, targetId, next.turn)
+  if (canLink && source.id !== targetId)
+    addOrTraverseEdge(next, source.id, targetId, movement, exactCommand(command, MAX_COMMAND_LENGTH))
+  next.currentNodeId = targetId
+  next.candidateNodeIds = []
+  next.resyncRequired = false
+  return next
+}
+
 function reduceTurn(state, command, observations) {
   var checked = validateMapState(state)
   if (!checked.valid) throw new TypeError("invalid automap state: " + checked.errors[0])
@@ -647,7 +731,7 @@ function reduceTurn(state, command, observations) {
     return next
   }
 
-  if (control !== "" || next.resyncRequired) {
+  if (control !== "" || (next.resyncRequired && next.candidateNodeIds.length === 0)) {
     var candidates = nodesWithLabel(next, observation.label)
     if (candidates.length === 1) {
       touchNode(next, candidates[0], next.turn)
@@ -950,6 +1034,12 @@ if (typeof module !== "undefined") {
     createEmptyState: createEmptyState,
     resynchronizeState: resynchronizeState,
     reduceTurn: reduceTurn,
+    reduceIdentifiedTurn: reduceIdentifiedTurn,
+    parseRoomEvent: parseRoomEvent,
+    parseInputEvent: parseInputEvent,
+    stripRoomMetadata: stripRoomMetadata,
+    pairRoomStatus: pairRoomStatus,
+    knownRoomObservation: knownRoomObservation,
     replayTurns: replayTurns,
     validateMapState: validateMapState,
     validatePersistentState: validatePersistentState,

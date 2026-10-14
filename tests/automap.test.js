@@ -203,7 +203,7 @@ test("empty state is versioned, deterministic, and valid", () => {
   const first = Automap.createEmptyState(cartridge)
   const second = Automap.createEmptyState(cartridge)
 
-  assert.equal(first.schemaVersion, 1)
+  assert.equal(first.schemaVersion, 2)
   assert.deepEqual(first.cartridge, cartridge)
   assert.deepEqual(first.nodes, [])
   assert.deepEqual(first.edges, [])
@@ -319,6 +319,13 @@ test("duplicate labels remain separate and ambiguous resynchronization draws not
   assert.deepEqual(state.candidateNodeIds, ["room-1", "room-3"])
   assert.equal(state.nodes.length, before.nodes)
   assert.equal(state.edges.length, before.edges)
+
+  state = Automap.reduceTurn(state, "east", location("Passage"))
+  assert.equal(state.currentNodeId, "room-2", "known candidate routes must reach the navigation branch")
+  assert.equal(state.resyncRequired, false)
+  assert.equal(state.nodes.length, before.nodes)
+  assert.equal(state.edges.length, before.edges)
+  assert.equal(state.edges[0].traversals, 1, "ambiguous source does not invent a traversal")
 })
 
 test("nonmovement location changes are confirmed but remain unplaced and unconnected", () => {
@@ -385,7 +392,7 @@ test("state validation enforces graph-count bounds", () => {
 
 test("state validation rejects future schemas, oversized labels, and dangling edges", () => {
   const future = Automap.createEmptyState({ engine: "zmachine" })
-  future.schemaVersion = 2
+  future.schemaVersion = 3
   assert.equal(Automap.validateMapState(future).valid, false)
 
   let state = Automap.createEmptyState({ engine: "zmachine" })

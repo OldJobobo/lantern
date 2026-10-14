@@ -1,0 +1,224 @@
+LANTERN_ROOM_V1 64 0 0
+ West of House                                Score: 0        Moves: 0
+
+ZORK I: The Great Underground Empire
+Infocom interactive fiction - a fantasy story
+Copyright (c) 1981, 1982, 1983, 1984, 1985, 1986 Infocom, Inc. All rights
+reserved.
+ZORK is a registered trademark of Infocom, Inc.
+Release 119 / Serial number 880429
+
+West of House
+You are standing in an open field west of a white house, with a boarded
+front door.
+There is a small mailbox here.
+
+>LANTERN_INPUT_V1 6e
+LANTERN_ROOM_V1 137 0 1
+ North of House                               Score: 0        Moves: 1
+
+North of House
+You are facing the north side of a white house. There is no door here, and
+all the windows are boarded up. To the north a narrow path winds through the
+trees.
+
+>LANTERN_INPUT_V1 6e
+LANTERN_ROOM_V1 238 0 2
+ Forest Path                                  Score: 0        Moves: 2
+
+Forest Path
+This is a path winding through a dimly lit forest. The path heads north-
+south here. One particularly large tree with some low branches stands at the
+edge of the path.
+
+>LANTERN_INPUT_V1 6e
+LANTERN_ROOM_V1 160 0 3
+ Clearing                                     Score: 0        Moves: 3
+
+Clearing
+You are in a clearing, with a forest surrounding you on all sides. A path
+leads south.
+On the ground is a pile of leaves.
+
+>LANTERN_INPUT_V1 73
+LANTERN_ROOM_V1 238 0 4
+ Forest Path                                  Score: 0        Moves: 4
+
+Forest Path
+
+>LANTERN_INPUT_V1 65
+LANTERN_ROOM_V1 32 0 5
+ Forest                                       Score: 0        Moves: 5
+
+Forest
+This is a dimly lit forest, with large trees all around.
+You hear in the distance the chirping of a song bird.
+
+>LANTERN_INPUT_V1 77
+LANTERN_ROOM_V1 238 0 6
+ Forest Path                                  Score: 0        Moves: 6
+
+Forest Path
+
+>LANTERN_INPUT_V1 77
+LANTERN_ROOM_V1 87 0 7
+ Forest                                       Score: 0        Moves: 7
+
+Forest
+This is a forest, with trees in all directions. To the east, there appears
+to be sunlight.
+
+>LANTERN_INPUT_V1 6e
+LANTERN_ROOM_V1 160 0 8
+ Clearing                                     Score: 0        Moves: 8
+
+Clearing
+On the ground is a pile of leaves.
+
+>LANTERN_INPUT_V1 65
+LANTERN_ROOM_V1 32 0 9
+ Forest                                       Score: 0        Moves: 9
+
+Forest
+
+>LANTERN_INPUT_V1 73
+LANTERN_ROOM_V1 128 0 10
+ Clearing                                     Score: 0        Moves: 10
+
+Clearing
+You are in a small clearing in a well marked forest path that extends to the
+east and west.
+
+>LANTERN_INPUT_V1 77
+LANTERN_ROOM_V1 85 0 11
+ Behind House                                 Score: 0        Moves: 11
+
+Behind House
+You are behind the white house. A path leads into the forest to the east. In
+one corner of the house there is a small window which is slightly ajar.
+
+>LANTERN_INPUT_V1 6e
+LANTERN_ROOM_V1 137 0 12
+ North of House                               Score: 0        Moves: 12
+
+North of House
+
+>LANTERN_INPUT_V1 65
+LANTERN_ROOM_V1 85 0 13
+ Behind House                                 Score: 0        Moves: 13
+
+Behind House
+
+>LANTERN_INPUT_V1 73
+LANTERN_ROOM_V1 209 0 14
+ South of House                               Score: 0        Moves: 14
+
+South of House
+You are facing the south side of a white house. There is no door here, and
+all the windows are boarded.
+
+>LANTERN_INPUT_V1 77
+LANTERN_ROOM_V1 64 0 15
+ West of House                                Score: 0        Moves: 15
+
+West of House
+There is a small mailbox here.
+
+>LANTERN_INPUT_V1 6e
+LANTERN_ROOM_V1 137 0 16
+ North of House                               Score: 0        Moves: 16
+
+North of House
+
+>LANTERN_INPUT_V1 65
+LANTERN_ROOM_V1 85 0 17
+ Behind House                                 Score: 0        Moves: 17
+
+Behind House
+
+>LANTERN_INPUT_V1 73
+LANTERN_ROOM_V1 209 0 18
+ South of House                               Score: 0        Moves: 18
+
+South of House
+
+>LANTERN_INPUT_V1 77
+LANTERN_ROOM_V1 64 0 19
+ West of House                                Score: 0        Moves: 19
+
+West of House
+There is a small mailbox here.
+
+>LANTERN_INPUT_V1 6e
+LANTERN_ROOM_V1 137 0 20
+ North of House                               Score: 0        Moves: 20
+
+North of House
+
+>LANTERN_INPUT_V1 65
+LANTERN_ROOM_V1 85 0 21
+ Behind House                                 Score: 0        Moves: 21
+
+Behind House
+
+>LANTERN_INPUT_V1 73
+LANTERN_ROOM_V1 209 0 22
+ South of House                               Score: 0        Moves: 22
+
+South of House
+
+>LANTERN_INPUT_V1 77
+LANTERN_ROOM_V1 64 0 23
+ West of House                                Score: 0        Moves: 23
+
+West of House
+There is a small mailbox here.
+
+>LANTERN_INPUT_V1 6e
+LANTERN_ROOM_V1 137 0 24
+ North of House                               Score: 0        Moves: 24
+
+North of House
+
+>LANTERN_INPUT_V1 65
+LANTERN_ROOM_V1 85 0 25
+ Behind House                                 Score: 0        Moves: 25
+
+Behind House
+
+>LANTERN_INPUT_V1 73
+LANTERN_ROOM_V1 209 0 26
+ South of House                               Score: 0        Moves: 26
+
+South of House
+
+>LANTERN_INPUT_V1 77
+LANTERN_ROOM_V1 64 0 27
+ West of House                                Score: 0        Moves: 27
+
+West of House
+There is a small mailbox here.
+
+>LANTERN_INPUT_V1 6e
+LANTERN_ROOM_V1 137 0 28
+ North of House                               Score: 0        Moves: 28
+
+North of House
+
+>LANTERN_INPUT_V1 65
+LANTERN_ROOM_V1 85 0 29
+ Behind House                                 Score: 0        Moves: 29
+
+Behind House
+
+>LANTERN_INPUT_V1 73
+LANTERN_ROOM_V1 209 0 30
+ South of House                               Score: 0        Moves: 30
+
+South of House
+
+>LANTERN_INPUT_V1 71756974
+LANTERN_ROOM_V1 209 0 30
+Your score is 0 (total of 350 points), in 30 moves.
+This gives you the rank of Beginner.
+Do you wish to leave the game? (Y is affirmative): >LANTERN_INPUT_V1 79

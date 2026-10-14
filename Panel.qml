@@ -67,6 +67,8 @@ Item {
   property var mapCommandQueue: AutomapSession.createCommandQueue(64)
   property bool mapObserverReady: false
   property var mapLastStatus: null
+  property var mapPendingRoom: null
+  property string mapPendingCommand: ""
   property bool mapObserverSuppressed: false
   property var mapPersistenceQueue: []
   property var mapActiveOperation: null
@@ -504,6 +506,8 @@ Item {
     mapCommandQueue = AutomapSession.createCommandQueue(64)
     mapObserverReady = false
     mapLastStatus = null
+    mapPendingRoom = null
+    mapPendingCommand = ""
     mapObserverSuppressed = false
   }
 
@@ -533,6 +537,8 @@ Item {
     mapObserverReady = false
     mapObserverSuppressed = false
     mapLastStatus = null
+    mapPendingRoom = null
+    mapPendingCommand = ""
     if (!pendingCartridge || pendingCartridge.engine !== "zmachine") {
       startPendingCartridge()
       return
@@ -603,15 +609,38 @@ Item {
   function observeAutomapOutput(raw) {
     if (!currentCartridge || currentCartridge.engine !== "zmachine" ||
         !mapCartridgeSupported || mapObserverSuppressed) return
-    var framed = Automap.observeFrotzStatusFrame(raw, mapObserverReady ? "prompt" : "startup")
-    if (!framed) return
-    var consumed = AutomapSession.consumeCommandForFrame(mapCommandQueue, framed.frame)
-    mapCommandQueue = consumed.queue
-    try {
-      if (Automap.statusDiscontinuity(mapLastStatus, framed.observation.status))
+    var input = Automap.parseInputEvent(raw)
+    if (input) {
+      // Native VM input acknowledges commands even when no status follows (quit
+      // and confirmation prompts). File dialogs do not enter the VM queue.
+      mapCommandQueue = AutomapSession.shiftCommand(mapCommandQueue).queue
+      mapPendingCommand = input.command
+      mapPendingRoom = null
+      if (!input.valid || Automap.normalizeControlCommand(input.command) !== "")
         mapState = Automap.resynchronizeState(mapState)
-      mapLastStatus = framed.observation.status
-      mapState = Automap.reduceTurn(mapState, consumed.command, [framed.observation])
+      return
+    }
+    var event = Automap.parseRoomEvent(raw)
+    if (event) {
+      event.command = mapPendingCommand
+      mapPendingCommand = ""
+      mapPendingRoom = event
+      return
+    }
+    var pending = mapPendingRoom
+    mapPendingRoom = null
+    var framed = Automap.pairRoomStatus(pending, raw)
+    var observation = framed ? framed.observation : Automap.knownRoomObservation(mapState, pending)
+    if (!observation) {
+      if (pending) mapState = Automap.resynchronizeState(mapState)
+      return
+    }
+    var command = pending.command
+    try {
+      if (Automap.statusDiscontinuity(mapLastStatus, observation.status))
+        mapState = Automap.resynchronizeState(mapState)
+      mapLastStatus = observation.status
+      mapState = Automap.reduceIdentifiedTurn(mapState, command, observation)
       mapObserverReady = true
       mapWriteDebounce.restart()
     } catch (error) {
@@ -1306,10 +1335,11 @@ Item {
   Process {
     id: gameProc
     stdinEnabled: true
+    environment: ({ "LANTERN_ROOM_EVENTS": root.mapCartridgeSupported ? "1" : "0" })
     stdout: SplitParser {
       onRead: function(line) {
         root.observeAutomapOutput(line)
-        root.appendOutput(line)
+        root.appendOutput(Automap.stripRoomMetadata(line))
       }
     }
     stderr: StdioCollector {

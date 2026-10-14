@@ -1,6 +1,6 @@
 # LANTERN
 
-> Development checkout targeting **0.2.0**; the latest published release remains **0.1.7**. See `docs/release-0.2.0-plan.md` for validation results and outstanding release gates. Native helper binaries in this candidate were rebuilt locally with GCC 16.2.1; they still need replacement and verification using the documented pinned GCC 14.2.0 build before release.
+> Development checkout targeting **0.2.0**; the latest published release remains **0.1.7**. See `docs/release-0.2.0-plan.md` for validation results and outstanding release gates.
 
 LANTERN is a standalone Omarchy Quattro plugin for playing classic interactive fiction inside a restrained early-1980s monochrome CRT window.
 
@@ -134,13 +134,17 @@ The repository-level MIT license applies to original LANTERN code and materials 
 
 0.2.0 automapping is deliberately limited to the bundled **Zork I** story, identified by its exact content fingerprint. A byte-identical imported copy also qualifies. Zork II/III, other imported Z-machine stories, ScottFree, and Open Adventure remain playable but do not enable mapping. Engine support alone is not proof of reliable room observation.
 
+Room identity comes directly from Frotz's Zork room-object IDs, not names or compass coordinates. Revisits reuse the same node and directed connection; different rooms may legitimately share a title. Coordinates are layout hints only.
+
 The neutral graph-paper overlay stays outside the CRT shader and draws only observed rooms and confirmed directed traversals. It never sends a hidden game command. Opening it preserves the command draft, owns focus and pointer input, and does not advance the game. `ERASE MAP` requires confirmation and erases only that cartridge's cumulative map, not game saves.
 
 Maps are stored independently of save slots under:
 
 ```text
-${XDG_STATE_HOME:-~/.local/state}/lantern/maps/zmachine-<sha256>.json
+${XDG_STATE_HOME:-~/.local/state}/lantern/maps/zmachine-v2-<sha256>.json
 ```
+
+Legacy maps at `zmachine-<sha256>.json` are preserved untouched. The new v2 map starts fresh from observed play; old names/coordinates cannot safely identify and repair duplicates. `ERASE MAP` affects only the current v2 map. Game saves and settings are unaffected.
 
 Restore/restart reacquires the current room without fabricating a route. Corrupt or unsupported map state is ignored without preventing game launch. If map writes fail, check state-directory permissions: the shared `lantern` parent must be user-owned and not group/world-writable; `maps` must be mode `0700` and map files `0600`.
 
@@ -161,6 +165,10 @@ QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input tests/qml -o -,t
 cmp bin/read-bounded-file /tmp/read-bounded-file
 ./scripts/build-cartridge-helper /tmp/lantern-cartridge
 cmp bin/lantern-cartridge /tmp/lantern-cartridge
+./scripts/build-map-state-helper /tmp/lantern-map-state
+cmp bin/lantern-map-state /tmp/lantern-map-state
+./scripts/build-frotz /tmp/dfrotz
+cmp runtime/x86_64-linux/dfrotz /tmp/dfrotz
 ./scripts/build-open-adventure /tmp/advent
 cmp runtime/x86_64-linux/advent /tmp/advent
 ./scripts/build-scottfree /tmp/scottfree
