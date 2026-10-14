@@ -117,28 +117,50 @@ test("identity survives non-Euclidean backtracking, renamed titles and coordinat
 })
 
 function cellKey(position) { return `${position.x}:${position.y}:${position.z}` }
+function projected(position) { return { x: position.x * 148 + position.z * 46, y: position.y * 106 - position.z * 72 } }
 
-test("non-Euclidean moves place new rooms in free cells without moving known rooms", () => {
-  // Wintermute session: Clearing east leads to a Forest whose implied cell is
-  // North of House, and that Forest south implies West of House's cell.
-  let state = Automap.createEmptyState(identity)
-  const turns = [["", 64, "West of House"], ["n", 137, "North of House"], ["n", 238, "Forest Path"],
-    ["s", 137, "North of House"], ["w", 64, "West of House"], ["w", 87, "Forest"], ["n", 160, "Clearing"],
-    ["e", 32, "Forest"], ["e", 167, "Forest"], ["s", 32, "Forest"], ["s", 128, "Clearing"]]
-  const placed = {}
-  for (const [command, id, label] of turns) {
-    state = Automap.reduceIdentifiedTurn(state, command, location(id, label))
-    for (const known of Object.keys(placed)) assert.deepEqual(state.layout.positions[known], placed[known])
-    placed[`room-${id}`] = state.layout.positions[`room-${id}`]
-  }
-  const cells = Object.values(state.layout.positions).map(cellKey)
-  assert.equal(new Set(cells).size, 8)
-  assert.deepEqual(state.layout.positions["room-64"], { x: 0, y: 0, z: 0 })
-  assert.deepEqual(state.layout.positions["room-137"], { x: 0, y: -1, z: 0 })
-  // Blocked east from Clearing (-1,-1) continues east past North of House.
-  assert.deepEqual(state.layout.positions["room-32"], { x: 1, y: -1, z: 0 })
-  assert.equal(Automap.validatePersistentState(Automap.toPersistentState(state)).valid, true)
-})
+// True when the straight route between two rooms passes through a third room.
+function routeCrossesRoom(state, edge) {
+  const from = projected(state.layout.positions[edge.from]), to = projected(state.layout.positions[edge.to])
+  return Object.entries(state.layout.positions).some(([id, position]) => {
+    if (id === edge.from || id === edge.to) return false
+    const box = projected(position)
+    for (let sample = 1; sample < 16; sample++) {
+      const t = sample / 16
+      if (Math.abs(from.x + (to.x - from.x) * t - box.x) < 54 && Math.abs(from.y + (to.y - from.y) * t - box.y) < 29) return true
+    }
+    return false
+  })
+}
+
+// Wintermute dogfood routes. Clearing east leads to a Forest whose implied cell
+// is North of House; the house loop reuses cells the forest already holds.
+const sessionTurns = [["", 64, "West of House"], ["n", 137, "North of House"], ["n", 238, "Forest Path"],
+  ["s", 137, "North of House"], ["w", 64, "West of House"], ["w", 87, "Forest"], ["n", 160, "Clearing"],
+  ["e", 32, "Forest"], ["e", 167, "Forest"], ["s", 32, "Forest"], ["s", 128, "Clearing"]]
+const exploreTurns = [["", 64, "West of House"], ["n", 137, "North of House"], ["n", 238, "Forest Path"],
+  ["u", 5, "Up a Tree"], ["d", 238, "Forest Path"], ["s", 137, "North of House"], ["e", 85, "Behind House"],
+  ["w", 27, "Kitchen"], ["w", 75, "Living Room"], ["e", 27, "Kitchen"], ["e", 85, "Behind House"],
+  ["s", 209, "South of House"], ["w", 64, "West of House"], ["w", 87, "Forest"], ["n", 160, "Clearing"],
+  ["e", 32, "Forest"], ["e", 167, "Forest"], ["s", 32, "Forest"], ["s", 128, "Clearing"]]
+
+for (const [name, turns] of [["session", sessionTurns], ["exploration", exploreTurns]]) {
+  test(`non-Euclidean ${name} places rooms in free cells, never moves them, and keeps routes clear`, () => {
+    let state = Automap.createEmptyState(identity)
+    const placed = {}
+    for (const [command, id, label] of turns) {
+      state = Automap.reduceIdentifiedTurn(state, command, location(id, label))
+      for (const known of Object.keys(placed)) assert.deepEqual(state.layout.positions[known], placed[known])
+      placed[`room-${id}`] = state.layout.positions[`room-${id}`]
+    }
+    const cells = Object.values(state.layout.positions).map(cellKey)
+    assert.equal(new Set(cells).size, state.nodes.length)
+    assert.deepEqual(state.layout.positions["room-64"], { x: 0, y: 0, z: 0 })
+    assert.deepEqual(state.layout.positions["room-137"], { x: 0, y: -1, z: 0 })
+    for (const edge of state.edges) assert.equal(routeCrossesRoom(state, edge), false, `${edge.from} -> ${edge.to}`)
+    assert.equal(Automap.validatePersistentState(Automap.toPersistentState(state)).valid, true)
+  })
+}
 
 test("restore/restart reacquires actual identity without adding a teleport edge", () => {
   let state = Automap.reduceIdentifiedTurn(Automap.createEmptyState(identity), "", location(64, "West of House"))

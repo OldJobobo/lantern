@@ -135,43 +135,55 @@ function coordinatesFromDirection(origin, direction) {
 
 // Zork paths are non-Euclidean, so the cell a move implies may already hold a
 // different room. Occupancy is judged in the canvas projection (x*148 + z*46,
-// y*106 - z*72) so up/down rooms also count. Prefer continuing along the move,
-// then the nearest ring around the implied cell; existing rooms never move.
-function freePosition(state, desired, vector) {
+// y*106 - z*72) so up/down rooms also count. A linked room takes the free cell
+// nearest the source whose straight route crosses no other room, preferring the
+// move's direction; existing rooms never move.
+function projectedPoint(position) {
+  return { x: position.x * 148 + position.z * 46, y: position.y * 106 - position.z * 72 }
+}
+
+function freePosition(state, origin, desired, vector) {
   if (!desired) return null
   var occupied = []
   var ids = Object.keys(state.layout.positions)
-  for (var i = 0; i < ids.length; i++) occupied.push(state.layout.positions[ids[i]])
-  function free(position) {
+  for (var i = 0; i < ids.length; i++) occupied.push(projectedPoint(state.layout.positions[ids[i]]))
+  var start = origin ? projectedPoint(origin) : null
+  function inBox(point, other, halfWidth, halfHeight) {
+    return Math.abs(point.x - other.x) < halfWidth && Math.abs(point.y - other.y) < halfHeight
+  }
+  function usable(position) {
     if (!boundedCoordinate(position.x) || !boundedCoordinate(position.y) || !boundedCoordinate(position.z))
       return false
-    var px = position.x * 148 + position.z * 46
-    var py = position.y * 106 - position.z * 72
+    var end = projectedPoint(position)
     for (var index = 0; index < occupied.length; index++) {
       var other = occupied[index]
-      if (Math.abs(px - (other.x * 148 + other.z * 46)) < 122 &&
-          Math.abs(py - (other.y * 106 - other.z * 72)) < 72) return false
+      if (inBox(end, other, 122, 72)) return false
+      if (!start || (other.x === start.x && other.y === start.y)) continue
+      for (var sample = 1; sample < 16; sample++) {
+        var t = sample / 16
+        if (inBox({ x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t }, other, 62, 37))
+          return false
+      }
     }
     return true
   }
-  if (free(desired)) return desired
-  if (vector) {
-    for (var step = 2; step <= 4; step++) {
-      var extended = { x: desired.x + vector.x * (step - 1), y: desired.y + vector.y * (step - 1),
-        z: desired.z + vector.z * (step - 1) }
-      if (free(extended)) return extended
-    }
-  }
-  for (var ring = 1; ring <= 8; ring++) {
+  if (usable(desired)) return desired
+  var center = origin && vector && (vector.x !== 0 || vector.y !== 0) ? origin : desired
+  var length = vector ? Math.sqrt(vector.x * vector.x + vector.y * vector.y) : 0
+  var best = null, bestScore = Infinity
+  for (var ring = 1; ring <= 4; ring++) {
     for (var dy = -ring; dy <= ring; dy++) {
       for (var dx = -ring; dx <= ring; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue
-        var candidate = { x: desired.x + dx, y: desired.y + dy, z: desired.z }
-        if (free(candidate)) return candidate
+        var candidate = { x: center.x + dx, y: center.y + dy, z: desired.z }
+        if (!usable(candidate)) continue
+        var alignment = length > 0 ? (dx * vector.x + dy * vector.y) / (length * Math.sqrt(dx * dx + dy * dy)) : 0
+        var score = (ring - 1) + (1 - alignment) * 1.5
+        if (score < bestScore) { best = candidate; bestScore = score }
       }
     }
   }
-  return desired
+  return best || desired
 }
 
 function stripTerminalControls(raw) {
@@ -723,8 +735,8 @@ function reduceIdentifiedTurn(state, command, observation) {
   if (!nodeById(next, targetId)) {
     var origin = source ? next.layout.positions[source.id] : { x: 0, y: 0, z: 0 }
     var position = canLink
-      ? freePosition(next, coordinatesFromDirection(origin, movement), directionVector(movement))
-      : freePosition(next, clonePosition(origin), null)
+      ? freePosition(next, origin, coordinatesFromDirection(origin, movement), directionVector(movement))
+      : freePosition(next, null, clonePosition(origin), null)
     if (!addNode(next, observation.label, next.turn, position, targetId)) return resynchronizeState(next)
   }
   nodeById(next, targetId).label = observation.label
