@@ -133,6 +133,47 @@ function coordinatesFromDirection(origin, direction) {
     ? position : null
 }
 
+// Zork paths are non-Euclidean, so the cell a move implies may already hold a
+// different room. Occupancy is judged in the canvas projection (x*148 + z*46,
+// y*106 - z*72) so up/down rooms also count. Prefer continuing along the move,
+// then the nearest ring around the implied cell; existing rooms never move.
+function freePosition(state, desired, vector) {
+  if (!desired) return null
+  var occupied = []
+  var ids = Object.keys(state.layout.positions)
+  for (var i = 0; i < ids.length; i++) occupied.push(state.layout.positions[ids[i]])
+  function free(position) {
+    if (!boundedCoordinate(position.x) || !boundedCoordinate(position.y) || !boundedCoordinate(position.z))
+      return false
+    var px = position.x * 148 + position.z * 46
+    var py = position.y * 106 - position.z * 72
+    for (var index = 0; index < occupied.length; index++) {
+      var other = occupied[index]
+      if (Math.abs(px - (other.x * 148 + other.z * 46)) < 122 &&
+          Math.abs(py - (other.y * 106 - other.z * 72)) < 72) return false
+    }
+    return true
+  }
+  if (free(desired)) return desired
+  if (vector) {
+    for (var step = 2; step <= 4; step++) {
+      var extended = { x: desired.x + vector.x * (step - 1), y: desired.y + vector.y * (step - 1),
+        z: desired.z + vector.z * (step - 1) }
+      if (free(extended)) return extended
+    }
+  }
+  for (var ring = 1; ring <= 8; ring++) {
+    for (var dy = -ring; dy <= ring; dy++) {
+      for (var dx = -ring; dx <= ring; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue
+        var candidate = { x: desired.x + dx, y: desired.y + dy, z: desired.z }
+        if (free(candidate)) return candidate
+      }
+    }
+  }
+  return desired
+}
+
 function stripTerminalControls(raw) {
   return String(raw || "")
     .replace(/\x1b\[[0-?]*[ -\/]*[@-~]/g, "")
@@ -681,7 +722,9 @@ function reduceIdentifiedTurn(state, command, observation) {
   var targetId = observation.roomId
   if (!nodeById(next, targetId)) {
     var origin = source ? next.layout.positions[source.id] : { x: 0, y: 0, z: 0 }
-    var position = canLink ? coordinatesFromDirection(origin, movement) : clonePosition(origin)
+    var position = canLink
+      ? freePosition(next, coordinatesFromDirection(origin, movement), directionVector(movement))
+      : freePosition(next, clonePosition(origin), null)
     if (!addNode(next, observation.label, next.turn, position, targetId)) return resynchronizeState(next)
   }
   nodeById(next, targetId).label = observation.label

@@ -113,7 +113,31 @@ test("identity survives non-Euclidean backtracking, renamed titles and coordinat
   state = Automap.reduceIdentifiedTurn(Automap.resynchronizeState(state), "north", location(87, "Forest"))
   assert.equal(state.nodes.length, 3)
   assert.equal(state.edges.length, 2)
-  assert.deepEqual(state.layout.positions["room-87"], { x: 0, y: 0, z: 0 })
+  assert.notDeepEqual(state.layout.positions["room-87"], state.layout.positions["room-32"])
+})
+
+function cellKey(position) { return `${position.x}:${position.y}:${position.z}` }
+
+test("non-Euclidean moves place new rooms in free cells without moving known rooms", () => {
+  // Wintermute session: Clearing east leads to a Forest whose implied cell is
+  // North of House, and that Forest south implies West of House's cell.
+  let state = Automap.createEmptyState(identity)
+  const turns = [["", 64, "West of House"], ["n", 137, "North of House"], ["n", 238, "Forest Path"],
+    ["s", 137, "North of House"], ["w", 64, "West of House"], ["w", 87, "Forest"], ["n", 160, "Clearing"],
+    ["e", 32, "Forest"], ["e", 167, "Forest"], ["s", 32, "Forest"], ["s", 128, "Clearing"]]
+  const placed = {}
+  for (const [command, id, label] of turns) {
+    state = Automap.reduceIdentifiedTurn(state, command, location(id, label))
+    for (const known of Object.keys(placed)) assert.deepEqual(state.layout.positions[known], placed[known])
+    placed[`room-${id}`] = state.layout.positions[`room-${id}`]
+  }
+  const cells = Object.values(state.layout.positions).map(cellKey)
+  assert.equal(new Set(cells).size, 8)
+  assert.deepEqual(state.layout.positions["room-64"], { x: 0, y: 0, z: 0 })
+  assert.deepEqual(state.layout.positions["room-137"], { x: 0, y: -1, z: 0 })
+  // Blocked east from Clearing (-1,-1) continues east past North of House.
+  assert.deepEqual(state.layout.positions["room-32"], { x: 1, y: -1, z: 0 })
+  assert.equal(Automap.validatePersistentState(Automap.toPersistentState(state)).valid, true)
 })
 
 test("restore/restart reacquires actual identity without adding a teleport edge", () => {
