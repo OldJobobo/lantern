@@ -18,6 +18,16 @@ test("manifest declares a summonable third-party panel", () => {
   assert.equal(manifest.license, "MIT AND GPL-2.0-or-later AND BSD-2-Clause")
 })
 
+test("shell entry points import the host Commons and Ui modules", () => {
+  // BarWidget needs WidgetButton/Style and Panel needs Color; the host only
+  // resolves them through these imports, which offline Qt tests cannot catch.
+  for (const file of ["BarWidget.qml", "Panel.qml"]) {
+    const source = fs.readFileSync(path.join(root, file), "utf8")
+    assert.match(source, /^import qs\.Commons$/m, `${file} imports qs.Commons`)
+    assert.match(source, /^import qs\.Ui$/m, `${file} imports qs.Ui`)
+  }
+})
+
 test("release polls Lantern configuration through the bounded reader", () => {
   const panel = fs.readFileSync(path.join(root, "Panel.qml"), "utf8")
   const config = fs.readFileSync(path.join(root, "lantern.toml"), "utf8")
