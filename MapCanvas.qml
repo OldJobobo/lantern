@@ -285,15 +285,33 @@ Item {
     var bend = (seededUnit(edge.from + edge.to + edge.direction, seed, "bend") - 0.5) * 18
     var middleX = (x1 + x2) / 2 + px * bend
     var middleY = (y1 + y2) / 2 + py * bend
+    var cx1 = (x1 + middleX) / 2
+    var cy1 = (y1 + middleY) / 2
+    var cx2 = (x2 + middleX) / 2
+    var cy2 = (y2 + middleY) / 2
+    var anchor = MapRender.exitAnchor(fromNode.width, fromNode.height, edge.direction)
+    // Only when the named side roughly faces the destination; a large mismatch
+    // would loop the route around its own room, so that stays straight.
+    if (anchor && anchor.ux * ux + anchor.uy * uy > 0.34) {
+      // Leave from the named side, offset along it for parallel routes, then
+      // curve in toward the destination along the straight approach.
+      var reach = Math.min(56, Math.max(28, length * 0.4))
+      x1 = fromNode.x + anchor.x - anchor.uy * offset
+      y1 = fromNode.y + anchor.y + anchor.ux * offset
+      cx1 = x1 + anchor.ux * reach
+      cy1 = y1 + anchor.uy * reach
+      cx2 = x2 - ux * reach
+      cy2 = y2 - uy * reach
+    }
     return {
       edge: edge, selfLoop: false, oneWay: !hasReverse,
       x1: x1, y1: y1,
-      cx1: (x1 + middleX) / 2, cy1: (y1 + middleY) / 2,
-      cx2: (x2 + middleX) / 2, cy2: (y2 + middleY) / 2,
+      cx1: cx1, cy1: cy1,
+      cx2: cx2, cy2: cy2,
       x2: x2, y2: y2,
       label: routeLabel(edge.direction),
-      bounds: ({ left: Math.min(x1, x2, middleX) - 24, top: Math.min(y1, y2, middleY) - 24,
-        right: Math.max(x1, x2, middleX) + 24, bottom: Math.max(y1, y2, middleY) + 24 })
+      bounds: ({ left: Math.min(x1, x2, cx1, cx2) - 24, top: Math.min(y1, y2, cy1, cy2) - 24,
+        right: Math.max(x1, x2, cx1, cx2) + 24, bottom: Math.max(y1, y2, cy1, cy2) + 24 })
     }
   }
 

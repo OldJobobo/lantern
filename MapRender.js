@@ -228,6 +228,21 @@ function routeInset(width, height, dx, dy, gap) {
   return Math.min(horizontal, vertical) + Math.max(0, Number(gap) || 0)
 }
 
+// Zork exits do not form a grid, so a room may be drawn away from the side its
+// exit names. Compass routes therefore leave from that side (or corner) of the
+// source room. Returns the boundary offset and outward unit vector, or null.
+var EXIT_SIDES = {
+  north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0],
+  northeast: [1, -1], northwest: [-1, -1], southeast: [1, 1], southwest: [-1, 1]
+}
+
+function exitAnchor(width, height, direction) {
+  var side = EXIT_SIDES[direction]
+  if (!side || !(Number(width) > 0) || !(Number(height) > 0)) return null
+  var length = Math.sqrt(side[0] * side[0] + side[1] * side[1])
+  return { x: side[0] * Number(width) / 2, y: side[1] * Number(height) / 2, ux: side[0] / length, uy: side[1] / length }
+}
+
 function orderedExitLabels(edges, currentNodeId) {
   var present = {}
   if (Array.isArray(edges)) {
@@ -257,6 +272,7 @@ if (typeof module !== "undefined") {
     fitViewport: fitViewport,
     clampViewport: clampViewport,
     routeInset: routeInset,
+    exitAnchor: exitAnchor,
     orderedExitLabels: orderedExitLabels
   }
 }

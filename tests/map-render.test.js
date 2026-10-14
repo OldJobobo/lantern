@@ -150,6 +150,17 @@ test("route insets stop horizontal and vertical arrows outside room boxes", () =
   assert.ok(diagonal > 35 && diagonal < 60)
 })
 
+test("compass routes leave from the side or corner their exit names", () => {
+  assert.deepEqual(MapRender.exitAnchor(108, 58, "east"), { x: 54, y: 0, ux: 1, uy: 0 })
+  assert.deepEqual(MapRender.exitAnchor(108, 58, "north"), { x: 0, y: -29, ux: 0, uy: -1 })
+  const corner = MapRender.exitAnchor(108, 58, "southwest")
+  assert.equal(corner.x, -54)
+  assert.equal(corner.y, 29)
+  assert.ok(Math.abs(corner.ux + Math.SQRT1_2) < 1e-9 && Math.abs(corner.uy - Math.SQRT1_2) < 1e-9)
+  for (const direction of ["up", "down", "in", "out", "", "sideways"]) assert.equal(MapRender.exitAnchor(108, 58, direction), null)
+  assert.equal(MapRender.exitAnchor(0, 58, "east"), null)
+})
+
 test("accessible exits follow semantic compass and vertical order", () => {
   const shuffled = [
     { from: "room-1", direction: "out" },
